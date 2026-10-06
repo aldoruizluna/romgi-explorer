@@ -102,8 +102,17 @@ jobs:
       - name: Check the browser engine against SQL
         run: node tests/engine.test.js data/romdb.db dist/dataset.snapshot.json.gz 12
 
+      - name: Build the link-free copy the SQL console runs on
+        run: python3 livedb.py data/romdb.db dist/livedb.sqlite.gz --gzip
+
+      - name: Check that copy against the original
+        run: python3 tests/test_livedb.py data/romdb.db dist/livedb.sqlite.gz
+
       - name: Build the site
-        run: python3 bundle.py --dataset dist/dataset.snapshot.json.gz --art dist/art.snapshot.json.gz --pages --out-dir site --site-url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+        run: python3 bundle.py --dataset dist/dataset.snapshot.json.gz --art dist/art.snapshot.json.gz --live-db dist/livedb.sqlite.gz --pages --out-dir site --site-url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+
+      - name: Check the SQL console's engine
+        run: node tests/sqlconsole.test.js dist/livedb.sqlite.gz site/vendor/sqljs dist/dataset.snapshot.json.gz
 
       - name: Check the site's catalogue file unpacks to the same dataset
         run: node tests/transport.test.js site/catalogue.*.bin dist/dataset.snapshot.json.gz

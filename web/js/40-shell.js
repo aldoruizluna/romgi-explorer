@@ -161,7 +161,7 @@ const App = {
   sqlPeekHTML() {
     const q = this.S.sql();
     return `<div class="sqlpeek"><div class="codebox"><pre>${hiSQL(q.select)}</pre>
-      <div class="copy" style="display:flex;gap:6px"><button class="btn sm" data-act="copy" data-text="${esc(q.select)}">${icon('copy', 13)}Copy</button>${this.D.caps.sql ? `<button class="btn sm primary" data-act="to-sql" data-sql="${esc(q.select)}">${icon('term', 13)}Open in SQL</button>` : ''}</div></div>
+      <div class="copy" style="display:flex;gap:6px"><button class="btn sm" data-act="copy" data-text="${esc(q.select)}">${icon('copy', 13)}Copy</button>${this.sqlOK() ? `<button class="btn sm primary" data-act="to-sql" data-sql="${esc(q.select)}">${icon('term', 13)}Open in SQL</button>` : ''}</div></div>
       ${q.exact ? '' : `<div class="muted" style="margin-top:6px;font-size:12px">One filter has no exact SQL form, so this query is an approximation.</div>`}</div>`;
   },
   renderTabs() {
@@ -224,7 +224,7 @@ const App = {
       case 'scrim': $('#app').classList.remove('rail-open'); $('#scrim').classList.remove('on'); Drawer.close(); break;
       case 'modal-bg': if (ev.target === el) el.classList.remove('on'); break;
       case 'sqlpeek': this.ui.sqlpeek = !this.ui.sqlpeek; this.saveUI(); this.renderScope(); break;
-      case 'to-sql': this.ui.sqlText = d.sql; this._sqlAuto = this.D.caps.sql; this.saveUI(); this.show('sql'); break;
+      case 'to-sql': this.ui.sqlText = d.sql; this._sqlAuto = this.D.caps.sql || Live.state === 'ready'; this.saveUI(); this.show('sql'); break;
       case 'preset': S.applyPreset(JSON.parse(d.preset)); if (d.go) this.show(d.go); break;
       default: { const h = this.handlers[el.dataset.act]; if (h) h(el, ev); }
     }

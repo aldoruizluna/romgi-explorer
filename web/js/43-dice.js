@@ -98,7 +98,7 @@ App.views.dice = {
       <div class="muted" style="margin-top:10px;font-size:12px">${M.hiddenR || M.hiddenC ? `Showing ${M.rows.length} of ${M.rows.length + M.hiddenR} rows and ${M.cols.length} of ${M.cols.length + M.hiddenC} columns. ` : ''}${multi ? 'Region and flags can hold several values per entry, so an entry counts once in every cell it belongs to and totals can be smaller than the sum of the cells. ' : ''}${m.id === 'bytes' || m.id === 'avg' ? 'Suspect sizes are left out. ' : ''}</div>
     </div>
     <div class="card" style="margin-top:14px"><div class="card-h"><div><h3>SQL behind this table</h3><p>${sqlq.exact === false ? 'This combination has no single query.' : 'Run it in any SQLite client against romdb.db.'}</p></div>
-      <div class="acts"><button class="btn sm" data-act="copy" data-text="${esc(sqlq.text)}">${icon('copy', 13)}Copy</button>${App.D.caps.sql ? `<button class="btn sm primary" data-act="to-sql" data-sql="${esc(sqlq.text)}">${icon('term', 13)}Open in SQL</button>` : ''}</div></div>
+      <div class="acts"><button class="btn sm" data-act="copy" data-text="${esc(sqlq.text)}">${icon('copy', 13)}Copy</button>${App.sqlOK() ? `<button class="btn sm primary" data-act="to-sql" data-sql="${esc(sqlq.text)}">${icon('term', 13)}Open in SQL</button>` : ''}</div></div>
       <div class="codebox"><pre>${hiSQL(sqlq.text)}</pre></div></div>`;
     this.M = M;
   },

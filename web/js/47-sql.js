@@ -1,4 +1,4 @@
-/* ============================================================ sql: a read-only console on the real database (local only) */
+/* ============================================================ sql: a read-only console, on the real database (local explorer) or a link-free copy of it (the hosted site, in the browser) */
 
 const SQL_HIST_KEY = 'sqlhist';
 function sqlCell(v) {
@@ -19,24 +19,24 @@ function sqlResultHTML(out) {
 
 App.views.sql = {
   render(root) {
-    const { D } = App, local = D.caps.sql, ex = D.raw.examples;
+    const { D } = App, local = D.caps.sql, live = !local && Live.available, can = local || live, ready = local || Live.state === 'ready', ex = D.raw.examples;
     const text = App.ui.sqlText || ex[0].sql;
     const tables = D.raw.schema.filter(t => t.kind !== 'shadow');
     const hist = store.get(SQL_HIST_KEY, []);
     root.innerHTML = `<div class="sql-grid">
       <div class="sql-main">
-        <div class="card"><div class="card-h"><div><h3>SQL console</h3><p>${local ? 'Read-only on romdb.db. One SELECT at a time, 20 seconds at most.' : 'Runs only when the explorer is started on your machine, because it needs the database file.'}</p></div>
-          <div class="acts">${local ? `<select id="sql-limit" aria-label="Row limit">${[100, 500, 2000, 20000].map(n => `<option value="${n}"${(App.ui.sqlLimit || 500) === n ? ' selected' : ''}>${fmtN(n)} rows</option>`).join('')}</select>
+        <div class="card"><div class="card-h"><div><h3>SQL console</h3><p>${local ? 'Read-only on romdb.db. One SELECT at a time, 20 seconds at most.' : live ? (ready ? 'Read-only, in your browser, on a copy of the catalogue with the download links emptied. One SELECT at a time, 20 seconds at most.' : `Runs SQLite in your browser on a copy of the catalogue with the download links emptied. The first run downloads it (${fmtBytes(Live.cfg.gz)}) and keeps it in your browser.`) : 'Runs only when the explorer is started on your machine, because it needs the database file.'}</p></div>
+          <div class="acts">${can ? `<select id="sql-limit" aria-label="Row limit">${[100, 500, 2000, 20000].map(n => `<option value="${n}"${(App.ui.sqlLimit || 500) === n ? ' selected' : ''}>${fmtN(n)} rows</option>`).join('')}</select>
             <button class="btn primary" data-act="sqlrun">${icon('play', 13)}Run <span class="kbd" style="margin-left:4px;color:inherit;border-color:rgba(255,255,255,.35);background:transparent">${/Mac/.test(navigator.platform) ? '⌘' : 'Ctrl'} ↵</span></button>` : ''}</div></div>
-          <textarea id="sql-in" class="sql-in" spellcheck="false" aria-label="SQL query" ${local ? '' : 'readonly'}>${esc(text)}</textarea>
-          ${local ? '' : `<div class="notice info" style="margin-top:12px">${icon('info', 16)}<div><b>Run it locally.</b> Get the explorer from <a href="https://github.com/aldoruizluna/romgi-explorer" target="_blank" rel="noopener">github.com/aldoruizluna/romgi-explorer</a> and start it with <span class="mono">./run.sh</span>; this console then runs against the full database, including file names and URLs. The examples on the right work in any SQLite client.</div></div>`}
+          <textarea id="sql-in" class="sql-in" spellcheck="false" aria-label="SQL query" ${can ? '' : 'readonly'}>${esc(text)}</textarea>
+          ${can ? (ready ? '' : Live.state === 'failed' ? '' : Live.state === 'loading' ? '' : sqlLoadNoticeHTML()) : `<div class="notice info" style="margin-top:12px">${icon('info', 16)}<div><b>Run it locally.</b> Get the explorer from <a href="https://github.com/aldoruizluna/romgi-explorer" target="_blank" rel="noopener">github.com/aldoruizluna/romgi-explorer</a> and start it with <span class="mono">./run.sh</span>; this console then runs against the full database, including file names and URLs. The examples on the right work in any SQLite client.</div></div>`}
         </div>
-        <div class="card flush" id="sql-out" style="margin-top:14px">${sqlResultHTML(App._sql)}</div>
+        <div class="card flush" id="sql-out" style="margin-top:14px">${live && Live.state === 'failed' ? sqlLoadFailedHTML() : sqlResultHTML(App._sql)}</div>
       </div>
       <aside class="sql-side">
         <div class="card"><div class="card-h"><div><h3>Examples</h3></div></div><div class="ex-list">${ex.map((e, i) => `<button class="ex" data-act="sqlex" data-i="${i}"><b>${esc(e.title)}</b><span>${esc(e.note)}</span></button>`).join('')}</div></div>
         <div class="card"><div class="card-h"><div><h3>Tables</h3><p>Click a name to use it.</p></div></div>${tables.map(t => `<details class="tb"><summary><span class="mono">${esc(t.name)}</span><span class="muted num">${t.rows == null ? '' : fmtN(t.rows)}</span></summary>${t.columns.map(c => `<button class="col" data-act="sqlcol" data-t="${esc(t.name)}" data-c="${esc(c.name)}"><span class="mono">${esc(c.name)}</span><span class="muted">${esc(c.type || '')}${c.pk ? ' pk' : ''}</span></button>`).join('')}<button class="btn sm ghost" style="margin:4px 0 0 8px" data-act="sqltbl" data-t="${esc(t.name)}">SELECT * FROM ${esc(t.name)}</button></details>`).join('')}</div>
-        ${hist.length && local ? `<div class="card"><div class="card-h"><div><h3>Recent</h3></div></div><div class="ex-list">${hist.map((h, i) => `<button class="ex" data-act="sqlhist" data-i="${i}"><span class="mono" style="color:var(--ink-2)">${esc(h.replace(/\s+/g, ' ').slice(0, 90))}</span></button>`).join('')}</div></div>` : ''}
+        ${hist.length && can ? `<div class="card"><div class="card-h"><div><h3>Recent</h3></div></div><div class="ex-list">${hist.map((h, i) => `<button class="ex" data-act="sqlhist" data-i="${i}"><span class="mono" style="color:var(--ink-2)">${esc(h.replace(/\s+/g, ' ').slice(0, 90))}</span></button>`).join('')}</div></div>` : ''}
       </aside></div>`;
   },
   after(root) {
@@ -48,6 +48,7 @@ App.views.sql = {
       if (e.key === 'Tab') { e.preventDefault(); const s = ta.selectionStart; ta.setRangeText('  ', s, ta.selectionEnd, 'end'); }
     });
     $('#sql-limit', root)?.addEventListener('change', e => { App.ui.sqlLimit = +e.target.value; App.saveUI(); });
+    if (Live.state === 'loading') App.views.sql.paintLoad();
     if (App._sqlAuto) { App._sqlAuto = false; App.handlers.sqlrun(); }
   },
 };
@@ -57,15 +58,22 @@ async function sqlFetch(path, sql, limit) {
 }
 Object.assign(App.handlers, {
   async sqlrun() {
-    if (!App.D.caps.sql) return toast('The SQL console needs the local explorer.');
+    const local = App.D.caps.sql;
+    if (!App.sqlOK()) return toast('The SQL console needs the local explorer or a browser that can run workers.');
     const ta = $('#sql-in'), sql = ta.value.trim(); if (!sql) return;
-    const out = $('#sql-out'); out.innerHTML = '<div class="vt-empty">Running…</div>';
+    if (!local && Live.state !== 'ready') {
+      App.ui.sqlText = ta.value;
+      const loading = Live.start(); App.renderView();         // the redraw swaps the notice for the progress bar
+      try { await loading; } catch { return; }                // the reason is already drawn in the results area
+      if (!$('#sql-out')) return;
+    }
+    $('#sql-out').innerHTML = '<div class="vt-empty">Running…</div>';
     try {
-      const r = await sqlFetch('/api/sql', sql, App.ui.sqlLimit || 500);
-      App._sql = await r.json(); App._sql.sql = sql;
+      App._sql = local ? await (await sqlFetch('/api/sql', sql, App.ui.sqlLimit || 500)).json() : await Live.run(sql, App.ui.sqlLimit || 500);
+      App._sql.sql = sql;
       const hist = [sql, ...store.get(SQL_HIST_KEY, []).filter(x => x !== sql)].slice(0, 12); store.set(SQL_HIST_KEY, hist);
     } catch (e) { App._sql = { error: 'Could not reach the local server: ' + e.message }; }
-    out.innerHTML = sqlResultHTML(App._sql);
+    const out = $('#sql-out'); if (out) out.innerHTML = sqlResultHTML(App._sql);
   },
   sqlex(el) { const e = App.D.raw.examples[+el.dataset.i]; App.ui.sqlText = e.sql; $('#sql-in').value = e.sql; App.saveUI(); $('#sql-in').focus(); },
   sqlhist(el) { const h = store.get(SQL_HIST_KEY, [])[+el.dataset.i]; if (h) { $('#sql-in').value = h; App.ui.sqlText = h; App.saveUI(); } },
@@ -77,6 +85,10 @@ Object.assign(App.handlers, {
   },
   async sqlcsv() {
     const o = App._sql; if (!o || !o.sql) return;
-    try { const r = await sqlFetch('/api/sqlcsv', o.sql, 0); if (!r.ok) return toast('The export failed.'); downloadText('romgi-query.csv', await r.text()); toast('CSV saved'); } catch { toast('The export failed.'); }
+    try {
+      if (App.D.caps.sql) { const r = await sqlFetch('/api/sqlcsv', o.sql, 0); if (!r.ok) return toast('The export failed.'); downloadText('romgi-query.csv', await r.text()); }
+      else { const m = await Live.csv(o.sql); if (m.error) return toast('The export failed.'); downloadText('romgi-query.csv', m.csv); }
+      toast('CSV saved');
+    } catch { toast('The export failed.'); }
   },
 });

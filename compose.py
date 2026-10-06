@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import html
+import json
 from pathlib import Path
 
 WEB = Path(__file__).resolve().parent / "web"
@@ -61,13 +62,14 @@ def hero_html(h: dict) -> str:
 
 
 def compose(mode: str, data_b64: str = "", standalone: bool = False, pages: bool = False,
-            data_url: str = "", hero: dict | None = None, art_url: str = "", site_url: str = "") -> str:
+            data_url: str = "", hero: dict | None = None, art_url: str = "", site_url: str = "", sql: dict | None = None) -> str:
     """mode: 'local' (talks to serve.py) or 'snapshot' (dataset embedded, or fetched from data_url).
     Fragment form is what the Artifact tool wants; pages=True adds noindex and serves the fonts from the site."""
     tpl, css, js = read_parts()
     js = js.replace("</script", "<\\/script")
     out = (tpl.replace("<!--@FONTS@-->", self_hosted_fonts() if pages else GOOGLE_FONTS)
            .replace("/*@CSS@*/", css).replace("/*@MODE@*/", mode).replace("/*@DATAURL@*/", html.escape(data_url, quote=True)).replace("/*@ARTURL@*/", html.escape(art_url, quote=True))
+           .replace("/*@SQL@*/null", json.dumps(sql).replace("</", "<\\/") if sql else "null")
            .replace("<!--@HERO@-->", hero_html(hero) if hero else "")
            .replace("/*@DATA@*/", data_b64).replace("/*@JS@*/", js + "\nboot();"))
     head = STANDALONE_HEAD

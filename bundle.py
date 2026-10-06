@@ -57,6 +57,7 @@ def main():
     ap.add_argument("--version-json")
     ap.add_argument("--dataset", help="gzip'd dataset JSON built by build_dataset.py (without --local)")
     ap.add_argument("--site-url", default="", help="with --pages: the public address of the site (ending in /), for link-preview tags and the social card")
+    ap.add_argument("--live-db", help="with --pages: gzip'd link-free copy of the database from livedb.py; the site gets a SQL console that runs in the browser")
     ap.add_argument("--art", help="gzip'd box-art paths from build_dataset.py --art-out; with --pages they become a file the site loads after start")
     ap.add_argument("--out-dir", default=str(HERE / "dist"))
     ap.add_argument("--pages", action="store_true", help="write a site for GitHub Pages into --out-dir (index.html marked noindex, the catalogue as its own file, version.json) instead of the two dist files")
@@ -80,7 +81,7 @@ def main():
         meta, name = ds["meta"], "catalogue." + hashlib.sha256(gz).hexdigest()[:8] + ".bin"
         hero = {"entries": ds["entries"]["n"], "links": ds["links"]["n"], "platforms": len(ds["dims"]["platforms"]),
                 "sources": len(ds["dims"]["sources"]), "version": meta["version"]}
-        for old in [*out.glob("catalogue.*.bin"), *out.glob("art.*.bin")]:
+        for old in [*out.glob("catalogue.*.bin"), *out.glob("art.*.bin"), *out.glob("db.*.bin")]:
             old.unlink()
         (out / name).write_bytes(gz)
         art_name = ""
@@ -94,16 +95,29 @@ def main():
                 (fonts / f.name).write_bytes(f.read_bytes())
         if a.site_url:
             (out / "og.png").write_bytes((HERE / "web" / "og" / "og.png").read_bytes())
-        page = compose("snapshot", "", standalone=True, pages=True, data_url=name, hero=hero, art_url=art_name, site_url=a.site_url)
+        sql_cfg, db_name = None, ""
+        if a.live_db:
+            from vendor_sqljs import fetch as fetch_sqljs
+            blob = Path(a.live_db).read_bytes()
+            db_name = "db." + hashlib.sha256(blob).hexdigest()[:8] + ".bin"
+            for old in out.glob("db.*.bin"):
+                old.unlink()
+            (out / db_name).write_bytes(blob)
+            (out / "sql-worker.js").write_bytes((HERE / "web" / "worker" / "sql-worker.js").read_bytes())
+            fetch_sqljs(str(out / "vendor" / "sqljs"))
+            sql_cfg = {"db": db_name, "gz": len(blob), "bytes": int.from_bytes(blob[-4:], "little"), "worker": "sql-worker.js", "sqljs": "vendor/sqljs/"}
+        page = compose("snapshot", "", standalone=True, pages=True, data_url=name, hero=hero, art_url=art_name, site_url=a.site_url, sql=sql_cfg)
         (out / "index.html").write_text(page, encoding="utf-8")
         # what a visitor's browser compares with romgi's live version.json to say whether this build is current
         (out / "version.json").write_text(json.dumps({
-            "built_at": meta.get("built_at"), "data": name, "art": art_name or None,
+            "built_at": meta.get("built_at"), "data": name, "art": art_name or None, "db": db_name or None,
             "romgi": {"version": meta["version"], "generated_at": meta.get("generated_at"), "entries": hero["entries"], "links": hero["links"]},
         }, indent=1) + "\n", encoding="utf-8")
         print(f"catalogue  {mb(len(gz))}  {out}/{name}")
         if art_name:
             print(f"box art    {mb(len(art_gz))}  {out}/{art_name}   (loaded after the page starts)")
+        if db_name:
+            print(f"sql copy   {mb(len(blob))}  {out}/{db_name}   (downloaded only when someone runs a query)")
         print(f"pages      {mb(len(page.encode()))}  {out}/index.html   (noindex)")
         return
     art = compose("snapshot", b64, standalone=False)

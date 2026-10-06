@@ -32,7 +32,7 @@ App.views.quality = {
           <span class="q-n num">${c.count != null && c.sev !== 'ok' ? `${fmtN(c.count)}${c.total ? `<span class="muted"> of ${fmtN(c.total)}</span>` : ''}` : ''}</span></div>
         <p class="q-s">${esc(c.summary)}</p>${extra}${meter}
         <div class="q-act">${showRows}${go}${c.sql ? `<button class="btn sm ghost" data-act="qsql" data-id="${esc(c.id)}" aria-expanded="${isOpen}">${icon('code', 13)}SQL</button>` : ''}</div>
-        ${c.sql ? `<div class="codebox q-sql"${isOpen ? '' : ' hidden'}><pre>${hiSQL(c.sql)}</pre><div class="copy" style="display:flex;gap:6px"><button class="btn sm" data-act="copy" data-text="${esc(c.sql)}">${icon('copy', 13)}Copy</button>${D.caps.sql ? `<button class="btn sm primary" data-act="to-sql" data-sql="${esc(c.sql)}">${icon('term', 13)}Run</button>` : ''}</div></div>` : ''}
+        ${c.sql ? `<div class="codebox q-sql"${isOpen ? '' : ' hidden'}><pre>${hiSQL(c.sql)}</pre><div class="copy" style="display:flex;gap:6px"><button class="btn sm" data-act="copy" data-text="${esc(c.sql)}">${icon('copy', 13)}Copy</button>${App.sqlOK() ? `<button class="btn sm primary" data-act="to-sql" data-sql="${esc(c.sql)}">${icon('term', 13)}Run</button>` : ''}</div></div>` : ''}
       </section>`;
     }).join('');
     root.innerHTML = head + `<div class="q-list">${cards}</div>`;

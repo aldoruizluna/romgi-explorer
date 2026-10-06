@@ -86,7 +86,7 @@ App.views.schema = {
       <section class="card s12 flush"><div class="card-h"><div><h3>How the tables join</h3><p>Click a table to inspect it. Counts are rows. Lines join a primary key (1) to the many rows that point at it (N).</p></div><div class="acts"><span class="pill info">${icon('db', 13)}${tabs.filter(x => x.kind !== 'shadow').length} tables</span></div></div>
         <div class="er-wrap">${erSVG(t.name)}</div></section>
       <section class="card s7" id="insp"><div class="card-h"><div><h3 class="mono" style="font-size:16px">${esc(t.name)}</h3><p>${t.kind === 'fts' ? 'Full-text index (FTS4). The app only uses it as a health probe.' : t.kind === 'shadow' ? 'Internal table that SQLite keeps for the full-text index.' : `${fmtN(t.rows ?? 0)} rows · ${t.columns.length} columns · ${t.bytes ? fmtBytes(t.bytes) : 'size unknown'}${t.idx_bytes ? ` plus ${fmtBytes(t.idx_bytes)} of indexes` : ''}`}</p></div>
-          <div class="acts">${D.caps.sql ? `<button class="btn sm" data-act="sqltable" data-t="${esc(t.name)}">${icon('term', 13)}Query</button>` : ''}</div></div>
+          <div class="acts">${App.sqlOK() ? `<button class="btn sm" data-act="sqltable" data-t="${esc(t.name)}">${icon('term', 13)}Query</button>` : ''}</div></div>
         <div class="codebox" style="margin-bottom:14px"><pre>${hiSQL(t.ddl || '')}</pre><div class="copy"><button class="btn sm" data-act="copy" data-text="${esc(t.ddl || '')}">${icon('copy', 13)}Copy</button></div></div>
         ${t.indexes.length ? `<div class="muted" style="font-size:12.5px;margin-bottom:6px"><b style="color:var(--ink)">Indexes</b> ${t.indexes.map(i => `<span class="mono">${esc(i.name)}</span> (${esc(i.cols.join(', '))})`).join(' · ')}</div>` : ''}
         ${fkTxt.length ? `<div class="muted" style="font-size:12.5px"><b style="color:var(--ink)">References</b> ${fkTxt.map(x => `<span class="mono">${esc(x)}</span>`).join(' · ')}</div>` : ''}
@@ -97,5 +97,5 @@ App.views.schema = {
 };
 Object.assign(App.handlers, {
   stbl(el) { App.ui.schemaTable = el.dataset.t; App.saveUI(); App.renderView(); $('#insp')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); },
-  sqltable(el) { App.ui.sqlText = `SELECT * FROM ${el.dataset.t} LIMIT 100;`; App._sqlAuto = true; App.saveUI(); App.show('sql'); },
+  sqltable(el) { App.ui.sqlText = `SELECT * FROM ${el.dataset.t} LIMIT 100;`; App._sqlAuto = App.D.caps.sql || Live.state === 'ready'; App.saveUI(); App.show('sql'); },
 });
