@@ -41,6 +41,17 @@ def read_parts():
     return (WEB / "index.html").read_text(encoding="utf-8"), css, js
 
 
+def og_meta(site_url: str) -> str:
+    """Description and link-preview tags (the social card is web/og/og.png). They work even though the page asks not to be indexed."""
+    u = html.escape(site_url, quote=True)
+    desc = "Every release and every link in the romgi ROM catalogue, sliceable and pivotable."
+    return (f'<meta name="description" content="{desc}"><meta property="og:type" content="website">'
+            f'<meta property="og:title" content="romgi catalogue explorer"><meta property="og:description" content="{desc}">'
+            f'<meta property="og:url" content="{u}"><meta property="og:image" content="{u}og.png">'
+            f'<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
+            f'<meta name="twitter:card" content="summary_large_image">')
+
+
 def hero_html(h: dict) -> str:
     """The numbers a visitor sees while the catalogue is still downloading: plain HTML, painted with the first bytes."""
     n = lambda k: f"{int(h[k]):,}"
@@ -50,7 +61,7 @@ def hero_html(h: dict) -> str:
 
 
 def compose(mode: str, data_b64: str = "", standalone: bool = False, pages: bool = False,
-            data_url: str = "", hero: dict | None = None, art_url: str = "") -> str:
+            data_url: str = "", hero: dict | None = None, art_url: str = "", site_url: str = "") -> str:
     """mode: 'local' (talks to serve.py) or 'snapshot' (dataset embedded, or fetched from data_url).
     Fragment form is what the Artifact tool wants; pages=True adds noindex and serves the fonts from the site."""
     tpl, css, js = read_parts()
@@ -61,5 +72,5 @@ def compose(mode: str, data_b64: str = "", standalone: bool = False, pages: bool
            .replace("/*@DATA@*/", data_b64).replace("/*@JS@*/", js + "\nboot();"))
     head = STANDALONE_HEAD
     if pages:
-        head = head.replace("<style>", ROBOTS + "<style>", 1)
+        head = head.replace("<style>", ROBOTS + (og_meta(site_url) if site_url else "") + "<style>", 1)
     return head + out + "</body></html>" if standalone else out

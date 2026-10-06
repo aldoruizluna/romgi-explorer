@@ -147,7 +147,7 @@ const App = {
   /* -------------------------------------------------------- scope bar and tabs */
   renderScope() {
     const S = this.S, k = S.kpis(), b = S.baseK, g = S.state.grain;
-    const chips = S.chips().map(c => `<span class="fchip${c.neg ? ' neg' : ''}"><span><b>${c.neg ? 'Not ' : ''}${esc(c.label)}</b> ${esc(c.text)}</span><button data-act="chip-x" data-k="${esc(c.key)}" aria-label="Remove filter">${icon('x', 12)}</button></span>`).join('');
+    const chips = S.chips().map(c => `<span class="fchip${c.neg ? ' neg' : ''}"${c.full && c.full !== c.text ? ` title="${esc(c.full)}"` : ''}><span><b>${c.neg ? 'Not ' : ''}${esc(c.label)}</b> ${esc(c.text)}</span><button data-act="chip-x" data-k="${esc(c.key)}" aria-label="Remove filter">${icon('x', 12)}</button></span>`).join('');
     const peek = this.ui.sqlpeek ? this.sqlPeekHTML() : '';
     $('#scope').innerHTML = `
       <div class="seg" role="group" aria-label="Count by"><button data-act="grain" data-g="entries" aria-pressed="${g === 'entries'}">Entries</button><button data-act="grain" data-g="links" aria-pressed="${g === 'links'}">Links</button></div>

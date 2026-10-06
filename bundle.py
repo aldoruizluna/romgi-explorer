@@ -56,6 +56,7 @@ def main():
     ap.add_argument("--db")
     ap.add_argument("--version-json")
     ap.add_argument("--dataset", help="gzip'd dataset JSON built by build_dataset.py (without --local)")
+    ap.add_argument("--site-url", default="", help="with --pages: the public address of the site (ending in /), for link-preview tags and the social card")
     ap.add_argument("--art", help="gzip'd box-art paths from build_dataset.py --art-out; with --pages they become a file the site loads after start")
     ap.add_argument("--out-dir", default=str(HERE / "dist"))
     ap.add_argument("--pages", action="store_true", help="write a site for GitHub Pages into --out-dir (index.html marked noindex, the catalogue as its own file, version.json) instead of the two dist files")
@@ -91,7 +92,9 @@ def main():
         for f in sorted((HERE / "web" / "fonts").iterdir()):
             if f.suffix in (".woff2", ".txt"):
                 (fonts / f.name).write_bytes(f.read_bytes())
-        page = compose("snapshot", "", standalone=True, pages=True, data_url=name, hero=hero, art_url=art_name)
+        if a.site_url:
+            (out / "og.png").write_bytes((HERE / "web" / "og" / "og.png").read_bytes())
+        page = compose("snapshot", "", standalone=True, pages=True, data_url=name, hero=hero, art_url=art_name, site_url=a.site_url)
         (out / "index.html").write_text(page, encoding="utf-8")
         # what a visitor's browser compares with romgi's live version.json to say whether this build is current
         (out / "version.json").write_text(json.dumps({

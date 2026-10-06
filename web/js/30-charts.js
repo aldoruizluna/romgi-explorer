@@ -72,14 +72,17 @@ function meterHTML(label, a, b, note = '') {
 
 /** After insertion: remove segment labels that do not fit with padding (never clip text). */
 function fitLabels(root) {
-  for (const s of $$('.seg-b > span', root)) if (s.scrollWidth + 10 > s.parentElement.clientWidth) s.remove();
-  for (const b of $$('button.seg-b', root)) {
-    if (b.offsetWidth >= 24) continue;
+  // read every width first, then change the DOM: one layout pass instead of one per segment
+  const labels = $$('.seg-b > span', root), tooWide = labels.map(s => s.scrollWidth + 10 > s.parentElement.clientWidth);
+  const segs = $$('button.seg-b', root), narrow = segs.map(b => b.offsetWidth < 24);
+  labels.forEach((s, k) => { if (tooWide[k]) s.remove(); });
+  segs.forEach((b, k) => {
+    if (!narrow[k]) return;
     const t = document.createElement('span');
     t.className = b.className; t.setAttribute('style', b.getAttribute('style')); t.setAttribute('aria-hidden', 'true');
-    for (const k of ['act', 'f', 'v', 'f2', 'v2', 'tk']) if (b.dataset[k] != null) t.dataset[k] = b.dataset[k];
+    for (const key of ['act', 'f', 'v', 'f2', 'v2', 'tk']) if (b.dataset[key] != null) t.dataset[key] = b.dataset[key];
     b.replaceWith(t);
-  }
+  });
 }
 
 /* ------------------------------------------------------------ treemap (squarified, two levels: brand > platform) */
@@ -148,9 +151,10 @@ function mountLine(el, { series, bands = [], fmt = fmtN }) {
   const ticks = 4, grid = [];
   for (let k = 0; k <= ticks; k++) { const v = (ymax / ticks) * k; grid.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" class="gl"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end" class="ax">${compact(v)}</text>`); }
   const months = [];
-  for (let d = new Date(t0); d <= t1; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) if (d.getTime() >= t0) months.push(new Date(d));
+  const first = new Date(t0);
+  for (let d = first.getDate() === 1 ? first : new Date(first.getFullYear(), first.getMonth() + 1, 1); d <= t1; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) if (d.getTime() >= t0) months.push(new Date(d));
   const xt = months.filter((_, i) => i % Math.ceil(months.length / Math.max(2, Math.floor((W - m.l - m.r) / 70))) === 0)
-    .map(d => `<text x="${X(d.getTime())}" y="${H - 8}" text-anchor="middle" class="ax">${d.toLocaleString('en', { month: 'short' })}${d.getMonth() === 0 ? ' ' + d.getFullYear() : ''}</text>`).join('');
+    .map((d, k) => `<text x="${X(d.getTime())}" y="${H - 8}" text-anchor="middle" class="ax">${d.toLocaleString('en', { month: 'short' })}${d.getMonth() === 0 || k === 0 ? ' ' + d.getFullYear() : ''}</text>`).join('');
   const bandSvg = bands.map(b => {
     const x0 = clamp(X(b.t0) - 6, m.l, W - m.r), x1 = clamp(X(b.t1) + 6, m.l, W - m.r);
     return `<rect x="${x0}" y="${m.t}" width="${Math.max(2, x1 - x0)}" height="${H - m.t - m.b}" class="band"/><text x="${x0 + 4}" y="${m.t + 12}" class="bandl">${esc(b.label)}</text>`;

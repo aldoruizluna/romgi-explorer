@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>romgi catalogue explorer: social card</title>
+<!-- Rendered to og.png (1200 x 630) for link previews. Open it in a browser, or: see README, "Social card". -->
+<style>
+@font-face { font-family: "Instrument Sans"; font-weight: 400 700; src: url(../fonts/instrument-sans-latin.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 400 700; src: url(../fonts/jetbrains-mono-latin.woff2) format("woff2"); }
+@font-face { font-family: "Pixelify Sans"; font-weight: 400 700; src: url(../fonts/pixelify-sans-latin.woff2) format("woff2"); }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1200px; height: 630px; background: #0e131c; color: #eef1f7; font-family: "Instrument Sans", system-ui, sans-serif; overflow: hidden; }
+.card { position: relative; width: 1200px; height: 630px; padding: 72px 80px; display: grid; grid-template-columns: 1fr 380px; gap: 56px; align-items: center;
+  background: radial-gradient(circle at 1px 1px, #1a2231 1.3px, transparent 1.6px) 0 0 / 22px 22px, #0e131c; }
+.brand { display: flex; align-items: center; gap: 22px; }
+.brand svg { width: 84px; height: 84px; color: #eef1f7; }
+.word { font: 700 84px/1 "Pixelify Sans", monospace; letter-spacing: .01em; }
+h1 { margin-top: 30px; font: 600 54px/1.08 "Instrument Sans", sans-serif; letter-spacing: -.02em; }
+p { margin-top: 20px; max-width: 560px; font: 400 28px/1.4 "Instrument Sans", sans-serif; color: #b7c0d1; }
+.url { position: absolute; left: 80px; bottom: 56px; font: 500 22px/1 "JetBrains Mono", monospace; color: #8f9ab0; letter-spacing: .02em; }
+.viz { display: grid; gap: 10px; }
+.row { display: flex; gap: 4px; height: 30px; }
+.row i { display: block; height: 100%; flex: var(--w) 0 0; background: var(--c); border-radius: 2px; }
+.row i:last-child { border-radius: 2px 8px 8px 2px; }
+.o { --c: #d95926; } .g { --c: #199e70; } .a { --c: #c98500; } .p { --c: #d55181; }
+.tiles { display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-rows: 38px; gap: 4px; margin-bottom: 14px; }
+.tiles b { background: rgba(57,135,229,.22); border-radius: 4px; }
+.tiles b:nth-child(1) { grid-column: span 3; grid-row: span 3; background: rgba(57,135,229,.5); }
+.tiles b:nth-child(2) { grid-column: span 3; grid-row: span 2; background: rgba(57,135,229,.36); }
+.tiles b:nth-child(3) { grid-column: span 2; grid-row: span 1; }
+.tiles b:nth-child(4) { grid-column: span 1; grid-row: span 1; background: rgba(57,135,229,.3); }
+</style></head>
+<body><div class="card">
+  <div>
+    <div class="brand">
+      <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M3 1h10v1h1v1h1v10h-1v1h-1v1H3v-1H2v-1H1V3h1V2h1V1zm1 2v1H3v8h1v1h8v-1h1V4h-1V3H4z"/><rect x="4" y="4" width="2" height="2" fill="currentColor"/><rect x="10" y="4" width="2" height="2" fill="currentColor"/><rect x="7" y="7" width="2" height="2" fill="currentColor"/><rect x="4" y="10" width="2" height="2" fill="currentColor"/><rect x="10" y="10" width="2" height="2" fill="currentColor"/></svg>
+      <div class="word">romgi</div>
+    </div>
+    <h1>Catalogue explorer</h1>
+    <p>Every release and every link in the romgi ROM catalogue, sliceable and pivotable.</p>
+  </div>
+  <div class="viz" aria-hidden="true">
+    <div class="tiles"><b></b><b></b><b></b><b></b></div>
+    <div class="row"><i class="o" style="--w:44"></i><i class="g" style="--w:20"></i><i class="a" style="--w:29"></i></div>
+    <div class="row"><i class="o" style="--w:23"></i><i class="a" style="--w:29"></i><i class="g" style="--w:0"></i></div>
+    <div class="row"><i class="o" style="--w:19"></i><i class="g" style="--w:18"></i></div>
+    <div class="row"><i class="g" style="--w:21"></i><i class="o" style="--w:9"></i></div>
+    <div class="row"><i class="g" style="--w:14"></i><i class="p" style="--w:6"></i></div>
+  </div>
+  <div class="url">aldoruizluna.github.io/romgi-explorer</div>
+</div></body></html>

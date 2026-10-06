@@ -98,15 +98,15 @@ const ASCII_ONLY = /^[\x00-\x7f]*$/;
 /** Builds the arrays the engine scans. A generator so the page can stay responsive: it yields between slices of about 10 ms. */
 function* prepareSteps(raw) {
   const dims = raw.dims, re = raw.entries, rl = raw.links, nE = re.n, nL = rl.n;
-  const E = {
-    n: nE, title: re.title, rom: re.rom, art: re.art || null,
-    platform: Uint8Array.from(re.platform), reg: Uint8Array.from(re.reg), ra: Uint32Array.from(re.ra), ran: Uint16Array.from(re.ran),
-    flags: Uint32Array.from(re.flags), nl: Uint16Array.from(re.nl), artk: Uint8Array.from(re.artk), group: Int16Array.from(re.group),
-  };
-  const L = {
-    n: nL, src: Uint8Array.from(rl.src), type: Uint8Array.from(rl.type), fmt: Uint8Array.from(rl.fmt),
-    size: Float64Array.from(rl.size), pack: Int16Array.from(rl.pack), tidx: Int32Array.from(rl.tidx),
-  };
+  // new TypedArray(array) is several times faster than TypedArray.from(array); the columns are copied a few at a time
+  const E = { n: nE, title: re.title, rom: re.rom, art: re.art || null };
+  E.platform = new Uint8Array(re.platform); E.reg = new Uint8Array(re.reg); E.ra = new Uint32Array(re.ra); yield;
+  E.ran = new Uint16Array(re.ran); E.flags = new Uint32Array(re.flags); E.nl = new Uint16Array(re.nl); yield;
+  E.artk = new Uint8Array(re.artk); E.group = new Int16Array(re.group); yield;
+  const L = { n: nL };
+  L.src = new Uint8Array(rl.src); L.type = new Uint8Array(rl.type); L.fmt = new Uint8Array(rl.fmt); yield;
+  L.size = new Float64Array(rl.size); yield;
+  L.pack = new Int16Array(rl.pack); L.tidx = new Int32Array(rl.tidx); yield;
   const slugX = new Map(Object.entries(re.slug_x).map(([k, v]) => [+k, v]));
   const fixes = new Map(Object.entries(re.fix).map(([k, v]) => [+k, v]));
 
@@ -115,7 +115,7 @@ function* prepareSteps(raw) {
   for (let i = 0; i < nE; i++) E.start[i + 1] = E.start[i] + E.nl[i];
   if (E.start[nE] !== nL) throw new Error('Link offsets do not add up: the dataset is damaged.');
   L.eo = new Uint32Array(nL);
-  for (let i = 0; i < nE; i++) { for (let k = E.start[i]; k < E.start[i + 1]; k++) L.eo[k] = i; if ((i & 0xFFFF) === 0xFFFF) yield; }
+  for (let i = 0; i < nE; i++) { for (let k = E.start[i]; k < E.start[i + 1]; k++) L.eo[k] = i; if ((i & 0x7FFF) === 0x7FFF) yield; }
   yield;
 
   // link-side derived columns
@@ -136,7 +136,7 @@ function* prepareSteps(raw) {
     L.deliv[l] = p >= 0 ? 1 : 0;
     L.pack8[l] = p >= 0 ? p : 255;
     L.coll[l] = p >= 0 ? packColl[p] : 255;
-    if ((l & 0x1FFFF) === 0x1FFFF) yield;
+    if ((l & 0x7FFF) === 0x7FFF) yield;
   }
 
   // entry-side derived columns

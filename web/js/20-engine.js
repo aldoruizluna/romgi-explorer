@@ -557,8 +557,13 @@ class Slicer {
       const s = this.state.f[f.id];
       if (!s) continue;
       const nm = v => (v >= f.n ? (f.noneExtra || '') : f.name(v));
-      if (s.inc.size) out.push({ key: f.id, label: f.label, text: [...s.inc].sort((a, b) => a - b).map(nm).join(s.mode === 'all' ? ' and ' : ', '), neg: false });
-      if (s.exc.size) out.push({ key: f.id + ':x', facet: f.id, label: f.label, text: [...s.exc].sort((a, b) => a - b).map(nm).join(', '), neg: true });
+      const short = (arr, j) => (arr.length > 3 ? `${arr.slice(0, 2).join(j)} and ${arr.length - 2} more` : arr.join(j));
+      if (s.inc.size) {
+        const vs = [...s.inc].sort((a, b) => a - b), arr = vs.map(nm), j = s.mode === 'all' ? ' and ' : ', ';
+        const anyRa = f.id === 'ra' && vs.length === f.n - 1 && !s.inc.has(0);            // every class except "none"
+        out.push({ key: f.id, label: f.label, text: anyRa ? 'any' : short(arr, j), full: arr.join(j), neg: false });
+      }
+      if (s.exc.size) { const arr = [...s.exc].sort((a, b) => a - b).map(nm); out.push({ key: f.id + ':x', facet: f.id, label: f.label, text: short(arr, ', '), full: arr.join(', '), neg: true }); }
     }
     return out;
   }

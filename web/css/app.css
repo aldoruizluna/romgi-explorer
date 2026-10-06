@@ -438,7 +438,7 @@ select:focus, .input:focus { outline: none; border-color: var(--accent); box-sha
   .colls { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 12px; padding-bottom: 8px; margin-right: -16px; padding-right: 16px; scrollbar-width: thin; }
   .coll { flex: 0 0 82%; scroll-snap-align: start; }
 }
-.coll { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "ic n" "ct ct"; gap: 12px 10px; align-items: start; text-align: left; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); transition: border-color .12s, background .12s, transform .12s; font: inherit; color: inherit; }
+.coll { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "ic n" "ct ct"; gap: 12px 10px; align-items: start; align-content: start; text-align: left; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); transition: border-color .12s, background .12s, transform .12s; font: inherit; color: inherit; }
 .coll:hover { border-color: var(--accent-line); background: var(--panel-2); transform: translateY(-1px); }
 .coll .ic-wrap { grid-area: ic; width: 34px; height: 34px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-text); border-radius: 8px; }
 .coll .ct { grid-area: ct; }
