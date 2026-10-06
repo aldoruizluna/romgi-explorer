@@ -20,7 +20,10 @@ const PV_PRESETS = [
 const PV_NORMS = [['none', 'Raw values'], ['row', 'Share of row'], ['col', 'Share of column'], ['total', 'Share of total'], ['lift', 'Versus expected']];
 
 function pivotModel() {
-  const { S } = App, p = App.ui.pivot, m = PV_MEASURES.find(x => x.id === p.measure) || PV_MEASURES[1];
+  const { S } = App, p = App.ui.pivot;
+  let m = PV_MEASURES.find(x => x.id === p.measure) || PV_MEASURES[1];
+  const waiting = (m.id === 'bytes' || m.id === 'avg') && !App.D.detailReady;      // exact sizes arrive with the titles; links until then
+  if (waiting) m = PV_MEASURES[1];
   const X = S.pivot(p.row, p.col === 'all' ? null : p.col, m.id);
   const hasCol = p.col !== 'all';
   const rowIdx = [];
@@ -37,7 +40,7 @@ function pivotModel() {
     colIdx.sort((a, b) => (X.colTot[b] || 0) - (X.colTot[a] || 0) || a - b);
   } else colIdx.push(0);
   const topR = p.top === 0 ? rowIdx.length : p.top, topC = p.top === 0 ? colIdx.length : Math.min(p.top, 24);
-  return { X, m, p, hasCol, rows: rowIdx.slice(0, topR), cols: colIdx.slice(0, topC), hiddenR: Math.max(0, rowIdx.length - topR), hiddenC: Math.max(0, colIdx.length - topC) };
+  return { X, m, p, waiting, hasCol, rows: rowIdx.slice(0, topR), cols: colIdx.slice(0, topC), hiddenR: Math.max(0, rowIdx.length - topR), hiddenC: Math.max(0, colIdx.length - topC) };
 }
 
 function pivotCell(M, r, c) {
@@ -55,6 +58,7 @@ function pivotCell(M, r, c) {
 App.views.dice = {
   render(root) {
     const { S } = App, p = App.ui.pivot, M = pivotModel(), { X, m } = M;
+    const sizeWait = !App.D.detailReady, needsSize = id => id === 'bytes' || id === 'avg';      // exact sizes arrive with the titles
     const dimOpts = (sel, allowAll) => `${allowAll ? `<option value="all"${sel === 'all' ? ' selected' : ''}>Nothing (one column)</option>` : ''}${GROUPS.map(g => `<optgroup label="${esc(g.label)}">${S.facets.filter(f => f.group === g.id).map(f => `<option value="${f.id}"${sel === f.id ? ' selected' : ''}>${esc(f.label)}</option>`).join('')}</optgroup>`).join('')}`;
     const norm = m.noNorm ? 'none' : p.norm;
     // colour scale
@@ -81,11 +85,11 @@ App.views.dice = {
       : `<div class="scale"><span>${norm === 'none' ? m.fmt(0) : '0%'}</span><span class="ramp" style="background:linear-gradient(90deg,${Color.seq(0).bg},${Color.seq(0.5).bg},${Color.seq(1).bg})"></span><span>${norm === 'none' ? m.fmt(maxT) : (maxT * 100).toFixed(0) + '%'}</span></div>`;
     root.innerHTML = `<div class="card">
       <div class="card-h"><div><h3>Dice the catalogue</h3><p>Pick any two dimensions. Everything here follows the slice on the left, so slice first, then dice.</p></div></div>
-      <div class="presets" style="margin-bottom:14px">${PV_PRESETS.map((q, i) => `<button class="preset" data-act="pvpreset" data-i="${i}">${esc(q.label)}</button>`).join('')}</div>
+      <div class="presets" style="margin-bottom:14px">${PV_PRESETS.map((q, i) => `<button class="preset" data-act="pvpreset" data-i="${i}"${sizeWait && needsSize(q.measure) ? ' disabled' : ''}>${esc(q.label)}</button>`).join('')}</div>
       <div class="pv-controls">
         <div class="field"><label for="pv-row">Rows</label><select id="pv-row" data-pv="row">${dimOpts(p.row, false)}</select></div>
         <div class="field"><label for="pv-col">Columns</label><select id="pv-col" data-pv="col">${dimOpts(p.col, true)}</select></div>
-        <div class="field"><label for="pv-m">Measure</label><select id="pv-m" data-pv="measure">${PV_MEASURES.map(x => `<option value="${x.id}"${p.measure === x.id ? ' selected' : ''}>${x.label}</option>`).join('')}</select></div>
+        <div class="field"><label for="pv-m">Measure</label><select id="pv-m" data-pv="measure">${PV_MEASURES.map(x => `<option value="${x.id}"${m.id === x.id ? ' selected' : ''}${sizeWait && needsSize(x.id) ? ' disabled' : ''}>${x.label}${sizeWait && needsSize(x.id) ? ' (loading)' : ''}</option>`).join('')}</select></div>
         <div class="field"><label for="pv-n">Show as</label><select id="pv-n" data-pv="norm" ${m.noNorm ? 'disabled' : ''}>${PV_NORMS.map(([k, l]) => `<option value="${k}"${norm === k ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
         <div class="field"><label for="pv-s">Sort rows</label><select id="pv-s" data-pv="sort">${[['value', 'Largest first'], ['label', 'A to Z'], ['natural', 'Natural order']].map(([k, l]) => `<option value="${k}"${p.sort === k ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
         <div class="field"><label for="pv-t">Show</label><select id="pv-t" data-pv="top">${[[10, 'Top 10'], [20, 'Top 20'], [50, 'Top 50'], [0, 'Everything']].map(([k, l]) => `<option value="${k}"${p.top === k ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -95,7 +99,7 @@ App.views.dice = {
         <span style="flex:1"></span>${scale}
         <button class="btn sm" data-act="pvcopy">${icon('copy', 13)}Copy table</button></div>
       ${M.rows.length ? `<div class="heat-wrap"><table class="heat"><thead>${head}</thead><tbody>${body}${foot}</tbody></table></div>` : '<div class="vt-empty">Nothing in this slice to tabulate.</div>'}
-      <div class="muted" style="margin-top:10px;font-size:12px">${M.hiddenR || M.hiddenC ? `Showing ${M.rows.length} of ${M.rows.length + M.hiddenR} rows and ${M.cols.length} of ${M.cols.length + M.hiddenC} columns. ` : ''}${multi ? 'Region and flags can hold several values per entry, so an entry counts once in every cell it belongs to and totals can be smaller than the sum of the cells. ' : ''}${m.id === 'bytes' || m.id === 'avg' ? 'Suspect sizes are left out. ' : ''}</div>
+      <div class="muted" style="margin-top:10px;font-size:12px">${M.hiddenR || M.hiddenC ? `Showing ${M.rows.length} of ${M.rows.length + M.hiddenR} rows and ${M.cols.length} of ${M.cols.length + M.hiddenC} columns. ` : ''}${multi ? 'Region and flags can hold several values per entry, so an entry counts once in every cell it belongs to and totals can be smaller than the sum of the cells. ' : ''}${M.waiting ? 'The exact sizes are still arriving, so this shows links. ' : ''}${m.id === 'bytes' || m.id === 'avg' ? 'Suspect sizes are left out. ' : ''}</div>
     </div>
     <div class="card" style="margin-top:14px"><div class="card-h"><div><h3>SQL behind this table</h3><p>${sqlq.exact === false ? 'This combination has no single query.' : 'Run it in any SQLite client against romdb.db.'}</p></div>
       <div class="acts"><button class="btn sm" data-act="copy" data-text="${esc(sqlq.text)}">${icon('copy', 13)}Copy</button>${App.sqlOK() ? `<button class="btn sm primary" data-act="to-sql" data-sql="${esc(sqlq.text)}">${icon('term', 13)}Open in SQL</button>` : ''}</div></div>

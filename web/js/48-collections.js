@@ -98,7 +98,7 @@ function dailyPicks(n = 6, day = new Date().toISOString().slice(0, 10)) {
 
 function picksHTML() {
   const D = App.D;
-  if (!D.textReady || !(D.caps.art || window.ROMGI.art)) return '';       // the cards need titles; covers need somewhere to come from
+  if (!D.detailReady || !(D.caps.art || window.ROMGI.art)) return '';       // the cards need titles; covers need somewhere to come from
   const ids = dailyPicks();
   if (!ids.length) return '';
   return `<section class="s12 shelf" aria-labelledby="picks-h"><div class="shelf-h"><div><h3 id="picks-h">Today's picks</h3><p>${ids.length} covers, one per platform. New every day.</p></div></div>

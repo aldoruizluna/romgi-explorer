@@ -31,26 +31,27 @@ HERE = Path(__file__).resolve().parent
 
 
 CHUNK = 40_000          # a column longer than this is split into lines of this many values
-# what only the Browse table, gallery, entry card and search need; everything else is in the first file, so the page can start
-TEXT_KEYS = {("entries", "title"), ("entries", "rom"), ("entries", "fix"), ("entries", "slug_x"), ("links", "tidx")}
+# What only the Browse table, gallery, entry card, search and the size totals need: titles, serials, slugs, torrent file numbers and the
+# exact sizes (62% of the first file when they were in it). Everything else, including each link's size class, is in the first file.
+DETAIL_KEYS = {("entries", "title"), ("entries", "rom"), ("entries", "fix"), ("entries", "slug_x"), ("links", "tidx"), ("links", "size")}
 
 
-def ndjson(ds: dict, text: bool = False) -> bytes:
+def ndjson(ds: dict, detail: bool = False) -> bytes:
     """One JSON document per line: [section, key|null, value] or, for a long column, [section, key, values, offset].
-    The browser parses each line in its own short task while the rest is still downloading. text=False writes everything the
-    page needs to start; text=True writes the titles, serials, slugs and torrent file numbers that follow."""
+    The browser parses each line in its own short task while the rest is still downloading. detail=False writes everything the
+    page needs to start; detail=True writes the titles, serials, slugs, torrent file numbers and exact sizes that follow."""
     dump = lambda v: json.dumps(v, separators=(",", ":"), ensure_ascii=False)
     lines = []
     for k, v in ds.items():
         if k in ("entries", "links") and isinstance(v, dict):
             for kk, vv in v.items():
-                if ((k, kk) in TEXT_KEYS) != text:
+                if ((k, kk) in DETAIL_KEYS) != detail:
                     continue
                 if isinstance(vv, list) and len(vv) > CHUNK:
                     lines += [dump([k, kk, vv[o:o + CHUNK], o]) for o in range(0, len(vv), CHUNK)]
                 else:
                     lines.append(dump([k, kk, vv]))
-        elif not text:
+        elif not detail:
             lines.append(dump([k, None, v]))
     return ("\n".join(lines) + "\n").encode("utf-8")
 
@@ -83,16 +84,16 @@ def main():
         ds = json.loads(gzip.decompress(gz))
         built_at = ds["meta"].pop("built_at", None)      # ships in the page instead, so the data file only changes when the data does
         gz = gzip.compress(ndjson(ds), 9, mtime=0)
-        text_gz = gzip.compress(ndjson(ds, text=True), 9, mtime=0)
+        detail_gz = gzip.compress(ndjson(ds, detail=True), 9, mtime=0)
         meta = ds["meta"]
         name = "catalogue." + hashlib.sha256(gz).hexdigest()[:8] + ".bin"
-        text_name = "text." + hashlib.sha256(text_gz).hexdigest()[:8] + ".bin"
+        detail_name = "detail." + hashlib.sha256(detail_gz).hexdigest()[:8] + ".bin"
         hero = {"entries": ds["entries"]["n"], "links": ds["links"]["n"], "platforms": len(ds["dims"]["platforms"]),
                 "sources": len(ds["dims"]["sources"]), "version": meta["version"]}
-        for old in [*out.glob("catalogue.*.bin"), *out.glob("text.*.bin"), *out.glob("art.*.bin"), *out.glob("db.*.bin")]:
+        for old in [*out.glob("catalogue.*.bin"), *out.glob("detail.*.bin"), *out.glob("art.*.bin"), *out.glob("db.*.bin")]:
             old.unlink()
         (out / name).write_bytes(gz)
-        (out / text_name).write_bytes(text_gz)
+        (out / detail_name).write_bytes(detail_gz)
         art_name = ""
         if art_gz:
             art_name = "art." + hashlib.sha256(art_gz).hexdigest()[:8] + ".bin"
@@ -116,15 +117,15 @@ def main():
             fetch_sqljs(str(out / "vendor" / "sqljs"))
             sql_cfg = {"db": db_name, "gz": len(blob), "bytes": int.from_bytes(blob[-4:], "little"), "worker": "sql-worker.js", "sqljs": "vendor/sqljs/"}
         page = compose("snapshot", "", standalone=True, pages=True, data_url=name, hero=hero, art_url=art_name, site_url=a.site_url, sql=sql_cfg, data_bytes=len(gz),
-                       text_url=text_name, text_bytes=len(text_gz), built_at=built_at or "")
+                       detail_url=detail_name, detail_bytes=len(detail_gz), built_at=built_at or "")
         (out / "index.html").write_text(page, encoding="utf-8")
         # what a visitor's browser compares with romgi's live version.json to say whether this build is current
         (out / "version.json").write_text(json.dumps({
-            "built_at": built_at, "data": name, "text": text_name, "art": art_name or None, "db": db_name or None,
+            "built_at": built_at, "data": name, "detail": detail_name, "art": art_name or None, "db": db_name or None,
             "romgi": {"version": meta["version"], "generated_at": meta.get("generated_at"), "entries": hero["entries"], "links": hero["links"]},
         }, indent=1) + "\n", encoding="utf-8")
         print(f"catalogue  {mb(len(gz))}  {out}/{name}   (the page starts when this has arrived)")
-        print(f"text       {mb(len(text_gz))}  {out}/{text_name}   (titles, serials, slugs; follows in the background)")
+        print(f"detail     {mb(len(detail_gz))}  {out}/{detail_name}   (titles, serials, slugs, exact sizes; follows in the background)")
         if art_name:
             print(f"box art    {mb(len(art_gz))}  {out}/{art_name}   (loaded after the page starts)")
         if db_name:

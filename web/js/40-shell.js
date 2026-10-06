@@ -37,7 +37,7 @@ const App = {
     this.paintTheme();
     const q = $('#q');
     q.dataset.ph = q.placeholder;
-    if (!D.textReady) { q.disabled = true; q.placeholder = 'Loading titles…'; }
+    if (!D.detailReady) { q.disabled = true; q.placeholder = 'Loading titles…'; }
     $('#ver').innerHTML = `<i class="fd" id="fd" aria-hidden="true"></i>${esc(`${D.meta.version} · schema v${D.meta.schema_version ?? '?'}`)}`;
     S.onChange = () => this.schedule();
     S.state.grain = store.get('grain', 'entries') === 'links' ? 'links' : 'entries';
@@ -45,18 +45,19 @@ const App = {
     this.buildRail(); this.renderTabs(); this.bind();
     this.refresh();
   },
-  /** The titles have arrived: wake the search box, redraw what needs them, and only now fetch the covers. */
-  textReady() {
+  /** The titles and sizes have arrived: wake the search box, drop the totals that were worked out without sizes, redraw, and only now fetch the covers. */
+  detailReady() {
     const q = $('#q');
     q.disabled = false; q.placeholder = q.dataset.ph || q.placeholder;
-    if (this.ui.view === 'overview' || this.ui.view === 'browse') this.renderView();
+    this.S.cache = {};
+    this.renderView();
     loadArt();
   },
   /** Progress of the title download: the search placeholder and, in Browse, the bar. */
-  textProgress() {
-    const s = this.textState || {}, p = s.total ? Math.min(1, s.got / s.total) : 0, q = $('#q');
+  detailProgress() {
+    const s = this.detailState || {}, p = s.total ? Math.min(1, s.got / s.total) : 0, q = $('#q');
     if (q && q.disabled) q.placeholder = s.error ? 'Titles could not be loaded' : `Loading titles… ${Math.round(p * 100)}%`;
-    const box = $('#text-load');
+    const box = $('#detail-load');
     if (box) { $('.num', box).textContent = s.total ? `${(s.got / 1e6).toFixed(1)} of ${(s.total / 1e6).toFixed(1)} MB` : ''; $('.mt i', box).style.width = (p * 100).toFixed(1) + '%'; }
     if (s.error && !box && this.ui.view === 'browse') this.renderView();
   },
@@ -249,7 +250,7 @@ const App = {
   },
   handlers: {},
   roll() {
-    if (!this.D.textReady) return toast('The titles are still loading.');
+    if (!this.D.detailReady) return toast('The titles are still loading.');
     const ids = this.S.visIdx('entries');
     if (!ids.length) return toast('Nothing in this slice to roll.');
     const el = $('#roll-ic'); el.firstElementChild.style.transition = 'rotate .5s cubic-bezier(.3,1.5,.5,1)'; el.firstElementChild.style.rotate = (Math.floor(Math.random() * 3) + 1) * 90 + 'deg';
@@ -284,7 +285,7 @@ const App = {
       if (el.dataset.act === 'close-modal') return $('#modal').classList.remove('on');
       this.act(el, e);
     });
-    $('#q').addEventListener('input', debounce(e => { if (this.D.textReady) S.setQuery(e.target.value); }, 140));
+    $('#q').addEventListener('input', debounce(e => { if (this.D.detailReady) S.setQuery(e.target.value); }, 140));
     $('#rail').addEventListener('input', e => {
       const id = e.target.dataset.find; if (!id) return;
       this.ui.find[id] = e.target.value;
@@ -348,7 +349,7 @@ async function boot() {
     await runSliced(collectionSteps());
     App.mount();
     Loader.done();
-    if (App.D.textReady) loadArt(); else loadText();      // not awaited: the page already works; titles, then covers, follow
+    if (App.D.detailReady) loadArt(); else loadDetail();      // not awaited: the page already works; titles, then covers, follow
     checkFreshness();                // likewise: a dot beside the version
   } catch (e) { console.error(e); Loader.fail(e); }
 }

@@ -366,6 +366,8 @@ class Slicer {
     const { E, L, res } = this;
     const R = this.dimOf(rowId), C = this.dimOf(colId);
     const nr = this.dimSize(R), nc = this.dimSize(C);
+    // The exact sizes arrive after the page starts. Until they do there is nothing to add up, and the empty answer is not cached.
+    if ((measure === 'bytes' || measure === 'avg') && !L.size) return { R, C, nr, nc, cells: new Float64Array(nr * nc), measure };
     if (!this._noFast && colId == null && rowId && rowId !== 'all' && (measure === 'entries' || measure === 'links') && this.base[measure]?.[rowId] && !this.anyActive()) {
       // unfiltered: the facet's base count in this grain is the same tally, already computed
       return (this.cache[ck] = { R, C, nr, nc, cells: Float64Array.from(this.base[measure][rowId].slice(0, nr)), measure });
@@ -475,11 +477,12 @@ class Slicer {
       if (E.artk[i]) art++;
       if (E.hasSer[i]) ser++;
     }
+    const size = L.size;           // null until the exact sizes have arrived: the totals are then left at 0 and the cache is dropped when they do
     for (let l = 0; l < L.n; l++) {
       if (res.failL[l] || res.failE[L.eo[l]]) continue;
       srcs[L.src[l]] = 1;
       const b = L.sb[l];
-      if (b >= 1 && b <= 5) { bytes += L.size[l]; withSize++; } else if (b === 6) susp++;
+      if (b >= 1 && b <= 5) { if (size) bytes += size[l]; withSize++; } else if (b === 6) susp++;
     }
     const sum = a => a.reduce((x, y) => x + y, 0);
     return (this.cache.k = { entries: res.nVisE, links: res.nVisL, titles, platforms: sum(plats), sources: sum(srcs), ra, ach, art, ser, bytes, susp, withSize,

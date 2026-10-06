@@ -115,7 +115,10 @@ jobs:
         run: node tests/sqlconsole.test.js dist/livedb.sqlite.gz site/vendor/sqljs dist/dataset.snapshot.json.gz
 
       - name: Check the site's two data files unpack to the same dataset
-        run: node tests/transport.test.js site/catalogue.*.bin site/text.*.bin dist/dataset.snapshot.json.gz
+        run: node tests/transport.test.js site/catalogue.*.bin site/detail.*.bin dist/dataset.snapshot.json.gz
+
+      - name: Check the page works from the first file alone, and again when the second arrives
+        run: node tests/early.test.js site/catalogue.*.bin site/detail.*.bin dist/dataset.snapshot.json.gz
 
       - uses: actions/upload-pages-artifact@v5
         with:

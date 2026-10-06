@@ -380,6 +380,7 @@ select:focus, .input:focus { outline: none; border-color: var(--accent); box-sha
 .presets { display: flex; flex-wrap: wrap; gap: 6px; }
 .preset { height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--ink-2); font-size: 12px; font-weight: 500; }
 .preset:hover { color: var(--ink); border-color: var(--ink-4); }
+.preset[disabled], .seg button[disabled] { opacity: 0.45; cursor: default; pointer-events: none; }
 .heat-wrap { overflow: auto; max-height: 68vh; border: 1px solid var(--line); border-radius: var(--r-s); margin-top: 14px; }
 .heat { border-collapse: separate; border-spacing: 2px; font: 500 11.5px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
 .heat th { background: var(--panel); color: var(--ink-2); font-weight: 500; text-align: left; padding: 6px 10px; position: sticky; z-index: 2; white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }

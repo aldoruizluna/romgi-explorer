@@ -1,6 +1,4 @@
 /* ============================================================ data: load the catalogue and derive the arrays the engine scans */
-const KiB = 1024, MiB = 1048576, GiB = 1073741824, TiB = 1099511627776;
-const SIZE_EDGES = [512 * KiB, 16 * MiB, 700 * MiB, Math.floor(4.7 * GiB)];
 
 async function loadDataset(onPhase) {
   if (window.ROMGI.mode === 'local') {
@@ -61,17 +59,17 @@ async function readNdjson(url, total, onProgress) {
 /** The numbers every view needs: the page starts as soon as this has arrived. */
 const fetchDataset = (url, onPhase) => readNdjson(url, window.ROMGI.dataBytes, (got, total) => Loader.progress(got, total));
 
-/** Titles, serials, slugs and torrent file numbers arrive as a second file while the page is already usable. The views
- *  that need them wait; the search box says so. */
-async function loadText() {
-  const D = App.D, url = window.ROMGI.text;
-  if (!D || D.textReady || !url) return;
-  App.textState = { got: 0, total: window.ROMGI.textBytes || 0, error: '' };
+/** Titles, serials, slugs, torrent file numbers and exact sizes arrive as a second file while the page is already usable.
+ *  The views that need them wait; the search box says so. */
+async function loadDetail() {
+  const D = App.D, url = window.ROMGI.detail;
+  if (!D || D.detailReady || !url) return;
+  App.detailState = { got: 0, total: window.ROMGI.detailBytes || 0, error: '' };
   try {
-    const part = await readNdjson(url, window.ROMGI.textBytes, (got, total) => { App.textState.got = got; App.textState.total = total || App.textState.total; App.textProgress(); });
-    await runSliced(attachTextSteps(D, part));
-    App.textReady();
-  } catch (e) { App.textState.error = e.message; console.warn('Titles unavailable:', e.message); App.textProgress(); }
+    const part = await readNdjson(url, window.ROMGI.detailBytes, (got, total) => { App.detailState.got = got; App.detailState.total = total || App.detailState.total; App.detailProgress(); });
+    await runSliced(attachDetailSteps(D, part));
+    App.detailReady();
+  } catch (e) { App.detailState.error = e.message; console.warn('Titles and sizes unavailable:', e.message); App.detailProgress(); }
 }
 
 /** The hosted site ships box-art paths as their own file, fetched once the page is usable; local mode already has them. */
@@ -114,13 +112,13 @@ const ASCII_ONLY = /^[\x00-\x7f]*$/;
 function* prepareSteps(raw) {
   const dims = raw.dims, re = raw.entries, rl = raw.links, nE = re.n, nL = rl.n;
   // new TypedArray(array) is several times faster than TypedArray.from(array); the columns are copied a few at a time
-  const E = { n: nE, title: null, rom: null, tl: null, art: re.art || null };       // the text is attached by attachTextSteps
+  const E = { n: nE, title: null, rom: null, tl: null, sumSize: null, art: re.art || null };       // the detail is attached by attachDetailSteps
   E.platform = new Uint8Array(re.platform); E.reg = new Uint8Array(re.reg); E.ra = new Uint32Array(re.ra); yield;
   E.ran = new Uint16Array(re.ran); E.flags = new Uint32Array(re.flags); E.nl = new Uint16Array(re.nl); yield;
   E.artk = new Uint8Array(re.artk); E.group = new Int16Array(re.group); yield;
   const L = { n: nL };
   L.src = new Uint8Array(rl.src); L.type = new Uint8Array(rl.type); L.fmt = new Uint8Array(rl.fmt); yield;
-  L.size = new Float64Array(rl.size); yield;
+  L.size = null; L.sb = new Uint8Array(rl.sb); yield;       // each link's size class comes with the numbers; the exact sizes follow with the titles
   L.pack = new Int16Array(rl.pack); L.tidx = null; yield;
 
   // entry -> link offsets, link -> entry
@@ -132,19 +130,11 @@ function* prepareSteps(raw) {
   yield;
 
   // link-side derived columns
-  L.sb = new Uint8Array(nL);
   L.deliv = new Uint8Array(nL);
   L.pack8 = new Uint8Array(nL);
   L.coll = new Uint8Array(nL);
   const packColl = dims.packs.map(p => p.collection);
-  const sus = dims.suspect, susSrc = dims.sources.findIndex(s => s.id === sus.source), platLimit = dims.platforms.map(p => p.limit ?? Infinity);
   for (let l = 0; l < nL; l++) {
-    const s = L.size[l];
-    let b;
-    if (!s) b = 0;
-    else if (s >= sus.tib || (L.src[l] === susSrc && s >= platLimit[E.platform[L.eo[l]]])) b = 6;   // a size no real copy could have
-    else { b = 1; for (const e of SIZE_EDGES) if (s >= e) b++; }
-    L.sb[l] = b;
     const p = L.pack[l];
     L.deliv[l] = p >= 0 ? 1 : 0;
     L.pack8[l] = p >= 0 ? p : 255;
@@ -166,18 +156,16 @@ function* prepareSteps(raw) {
   E.initial = new Uint8Array(re.initial);
   E.tkey = new Uint32Array(nE);                  // title group ids, counted up as titles first appear; tback is the way back (0 = new)
   E.inGrp = new Uint8Array(nE);
-  E.sumSize = new Float64Array(nE);
   let nextTitle = 0;
   for (let i = 0; i < nE; i++) {
     const back = re.tback[i];
     E.tkey[i] = back === 0 ? nextTitle++ : nextTitle - back;
     E.brand[i] = platBrand[E.platform[i]];
     E.regBits[i] = REGLUT[E.reg[i]];
-    let m = 0, sum = 0;
-    for (let k = E.start[i]; k < E.start[i + 1]; k++) { m |= 1 << L.src[k]; const b = L.sb[k]; if (b >= 1 && b <= 5) sum += L.size[k]; }
+    let m = 0;
+    for (let k = E.start[i]; k < E.start[i + 1]; k++) m |= 1 << L.src[k];
     E.smask[i] = m;
     E.nsrc[i] = (m & 1) + ((m >> 1) & 1) + ((m >> 2) & 1) + ((m >> 3) & 1);
-    E.sumSize[i] = sum;
     const n = E.ran[i];
     E.rab[i] = n === 0 ? 0 : n < 10 ? 1 : n < 25 ? 2 : n < 50 ? 3 : n < 100 ? 4 : n < 250 ? 5 : 6;
     const nl = E.nl[i];
@@ -187,7 +175,7 @@ function* prepareSteps(raw) {
   }
 
   if (nextTitle !== re.ntitles) throw new Error('The title groups do not add up: the dataset is damaged.');
-  const D = { raw, dims, E, L, nTitles: re.ntitles, meta: raw.meta, caps: raw.meta.caps, slugX: new Map(), fixes: new Map(), textReady: false };
+  const D = { raw, dims, E, L, nTitles: re.ntitles, meta: raw.meta, caps: raw.meta.caps, slugX: new Map(), fixes: new Map(), detailReady: false };
   D.platformOf = i => dims.platforms[E.platform[i]];
   D.slugOf = i => D.slugX.get(i) ?? (slugifyAscii(E.title[i]) + '-' + dims.platforms[E.platform[i]].id + D.regIds(i).map(r => '-' + r).join(''));
   D.regIds = i => { const out = []; let c = E.reg[i]; while (c) { out.push(dims.regions[c % 5 - 1].id); c = Math.floor(c / 5); } return out; };
@@ -203,16 +191,24 @@ function* prepareSteps(raw) {
   D.entryLinks = i => [E.start[i], E.start[i + 1]];
   D.groupOf = i => (E.group[i] >= 0 ? dims.groups[E.group[i]] : null);
   D.sameTitle = i => { const out = []; const k = E.tkey[i]; for (let j = Math.max(0, i - 40); j < Math.min(nE, i + 41); j++) if (E.tkey[j] === k) out.push(j); return out; };
-  if (re.title) yield* attachTextSteps(D, raw);        // a whole dataset (local server, single file, tests) carries its text
+  if (re.title && rl.size) yield* attachDetailSteps(D, raw);        // a whole dataset (local server, single file, tests) carries its detail
   return D;
 }
 
-/** Titles, serials, slugs and torrent file numbers; then the lower-cased titles the search scans. */
-function* attachTextSteps(D, part) {
+/** Titles, serials, slugs, torrent file numbers and exact sizes; then each entry's total size and the lower-cased titles the search scans. */
+function* attachDetailSteps(D, part) {
   const E = D.E, L = D.L, pe = part.entries, pl = part.links;
-  if (pe.title.length !== E.n) throw new Error('The titles do not belong to this catalogue. Reload the page.');
+  if (pe.title.length !== E.n || pl.size.length !== L.n) throw new Error('The titles and sizes do not belong to this catalogue. Reload the page.');
   E.title = pe.title; E.rom = pe.rom; yield;
-  L.tidx = new Int32Array(pl.tidx); yield;
+  L.tidx = new Int32Array(pl.tidx); L.size = new Float64Array(pl.size); yield;
+  const sum = new Float64Array(E.n);                 // an entry's size: its links with a plausible size, added up
+  for (let i = 0; i < E.n; i++) {
+    let t = 0;
+    for (let k = E.start[i]; k < E.start[i + 1]; k++) { const b = L.sb[k]; if (b >= 1 && b <= 5) t += L.size[k]; }
+    sum[i] = t;
+    if ((i & 0x3FFF) === 0x3FFF) yield;
+  }
+  E.sumSize = sum;
   D.slugX = new Map(Object.entries(pe.slug_x).map(([k, v]) => [+k, v]));
   D.fixes = new Map(Object.entries(pe.fix).map(([k, v]) => [+k, v]));
   const tl = new Array(E.n);
@@ -222,7 +218,7 @@ function* attachTextSteps(D, part) {
     if ((i & 0x3FFF) === 0x3FFF) yield;
   }
   E.tl = tl;
-  D.textReady = true;
+  D.detailReady = true;
 }
 
 function prepare(raw) {

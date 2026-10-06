@@ -103,6 +103,9 @@ def bucket(s, src, pi):
 buckets = collections.Counter(bucket(L["size"][l], L["src"][l], link_plat[l]) for l in range(L["n"]))
 for b in D["sizes"]:
     check(f"size class {b['id']} {b['label']}", buckets[b["id"]], sc(f"SELECT COUNT(*) FROM links l WHERE {b['sql']}"))
+# the classes the page starts from (its exact sizes arrive later) are the ones this recomputes from the sizes
+check("links whose shipped size class differs from their size", sum(1 for l in range(L["n"]) if L["sb"][l] != bucket(L["size"][l], L["src"][l], link_plat[l])), 0)
+check("shipped size classes add up per class", int(sorted(collections.Counter(L["sb"]).items()) == sorted(buckets.items())), 1)
 
 # sources, types, formats, packs
 for i, s in enumerate(D["sources"]):

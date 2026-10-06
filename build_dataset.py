@@ -28,7 +28,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 HERE = Path(__file__).resolve().parent
-BUILD_VERSION = 8   # bump when the dataset format changes; serve.py keys its cache on it
+BUILD_VERSION = 9   # bump when the dataset format changes; serve.py keys its cache on it
 
 # Fixed entity order. Colour slots are assigned by this order and never by rank, so a source keeps its colour.
 SOURCE_ORDER = ["minerva", "internet_archive", "nopaystation", "mariocube"]
@@ -347,6 +347,10 @@ def build(db_path, *, local=False, version_json=None, history_json=None, profile
     l_type = [t_idx[r[2]] for r in lrows]
     l_fmt = [f_idx[r[3]] for r in lrows]
     l_size = [r[4] for r in lrows]
+    # The size class of each link (0 unknown, 1-5 by size, 6 suspect). The page needs the class to start and the exact size only for
+    # totals and the size column, so the sizes can arrive later. size_bucket() is the reference the page and the printed SQL follow.
+    plat_ids = [p["id"] for p in platforms]
+    l_sb = [size_bucket(r[4], SOURCE_ORDER[r[1]], plat_ids[e_plat[r[0]]]) for r in lrows]
     l_pack = [r[6] for r in lrows]
     l_tidx = [r[7] for r in lrows]
     l_auth = [i for i, r in enumerate(lrows) if r[5]]
@@ -412,7 +416,7 @@ def build(db_path, *, local=False, version_json=None, history_json=None, profile
             "initial": e_initial, "tback": e_tback, "hasser": e_hasser, "ntitles": len(tkey_seen),
             **({"art": e_art} if local else {}),
         },
-        "links": {"n": nL, "src": l_src, "type": l_type, "fmt": l_fmt, "size": l_size, "pack": l_pack,
+        "links": {"n": nL, "src": l_src, "type": l_type, "fmt": l_fmt, "size": l_size, "sb": l_sb, "pack": l_pack,
                   "tidx": l_tidx, "auth": l_auth},
         "schema": schema, "storage": storage, "quality": quality, "history": history,
         "examples": EXAMPLES,

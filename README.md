@@ -64,10 +64,11 @@ hours and costs nothing in between. A rebuild downloads the published catalogue,
 them to `data/history.json`), builds the dataset, checks it against SQL, and deploys:
 
 - a small `index.html` that paints at once with the headline numbers;
-- the catalogue's numbers (2.2 MB gzip) as their own file that streams in with a progress bar and is parsed while it downloads. The
-  counts, charts, filters and pivots all work from this file alone, so on a phone the page is usable after 2.2 MB, not the 4.8 MB it
-  took when titles came along;
-- the titles, serials and slugs (2.7 MB) as a second file that follows at once. Search and the Browse table switch on when it lands;
+- the catalogue's numbers (0.9 MB gzip) as their own file that streams in with a progress bar and is parsed while it downloads. The
+  counts, charts, filters and pivots all work from this file alone, so on a phone the page is usable after 0.9 MB, not the 4.8 MB it
+  took when everything came in one file;
+- the titles, serials, slugs and exact sizes (4.0 MB) as a second file that follows at once. Search, the Browse table and the size
+  totals switch on when it lands, and until then they say so;
 - the box-art paths as a third file, loaded once the titles are in, and the covers themselves only as they scroll into view;
 - a link-free copy of the database (`livedb.py`) and [sql.js](https://github.com/sql-js/sql.js) (checked against a pinned hash), which
   the SQL console downloads only when someone runs a query, and then keeps in the browser.
@@ -102,8 +103,8 @@ web/                index.html, css/, js/ (util, data, engine, charts, views, co
                     worker/ (the SQL engine), fonts/ (self-hosted, OFL), og/ (the link-preview card)
 data/history.json   weekly snapshot sizes, extracted from the romgi git history
 docs/img/           the screenshots above
-tests/              dataset-vs-SQL parity, a random-slice property test of the engine, the hosted file's transport,
-                    the link-free copy, and the browser SQL engine
+tests/              dataset-vs-SQL parity, a random-slice property test of the engine, the hosted files' transport, the engine
+                    before and after the detail arrives, the link-free copy, and the browser SQL engine
 .github/workflows/  pages.yml: the build that publishes the live site
 ```
 
@@ -115,7 +116,8 @@ python3 tests/test_dataset.py data/romdb.db dist/dataset.snapshot.json.gz
 node tests/engine.test.js data/romdb.db dist/dataset.snapshot.json.gz 40
 python3 livedb.py data/romdb.db dist/livedb.sqlite.gz --gzip && python3 tests/test_livedb.py data/romdb.db dist/livedb.sqlite.gz
 # after bundle.py --pages --live-db:
-node tests/transport.test.js site/catalogue.*.bin site/text.*.bin dist/dataset.snapshot.json.gz
+node tests/transport.test.js site/catalogue.*.bin site/detail.*.bin dist/dataset.snapshot.json.gz
+node tests/early.test.js site/catalogue.*.bin site/detail.*.bin dist/dataset.snapshot.json.gz
 node tests/sqlconsole.test.js dist/livedb.sqlite.gz site/vendor/sqljs dist/dataset.snapshot.json.gz
 ```
 
@@ -125,7 +127,10 @@ the SQL the UI prints, compares the one-dimension fast paths with the general pa
 The third checks that the link-free copy is the original minus only the download locators. The fourth unpacks the two hosted data
 files the way the page does and checks that together they equal the dataset they were made from, that a page started from the first file
 and given the second ends up identical to one built from the whole dataset, and that a missing or mismatched second file is refused
-cleanly. The fifth runs the browser's SQL engine: what may run, that writes fail, CSV quoting, and every example the console offers.
+cleanly. The next one runs the engine from the first file alone, as the page does for the first few seconds, and checks it against
+the whole dataset: counts, facets, collections and cross-tabs agree, the size measures answer with nothing instead of failing, and
+once the detail arrives the size totals and the sort by size agree too. The last runs the browser's SQL engine: what may run, that
+writes fail, CSV quoting, and every example the console offers.
 
 ## License
 

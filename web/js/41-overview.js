@@ -13,6 +13,8 @@ const selectedOf = id => { const s = App.S.state.f[id]; return s && s.inc.size ?
 const unitName = () => (App.S.state.grain === 'entries' ? 'entries' : 'links');
 const measureOf = () => (App.S.state.grain === 'entries' ? 'entries' : 'links');
 const hint = '<br>';
+/** The treemap's measure. Size adds up exact sizes, which arrive with the titles; links until then. */
+const treemapMeasure = () => (App.ui.treemap === 'bytes' && !App.D.detailReady ? 'links' : App.ui.treemap);
 
 function simpleBars(id, title, sub, opt = {}) {
   const S = App.S, m = opt.measure || measureOf(), items = itemsFor(id, m, opt);
@@ -39,18 +41,19 @@ App.views.overview = {
       ${tile('Platforms', fmtN(k.platforms), `of ${fmtN(dims.platforms.length)}`, 'grid')}
       ${tile('Distinct titles', fmtN(k.titles), `of ${fmtN(D.nTitles)} by platform`, 'tag')}
       ${tile('Links per entry', k.perEntry.toFixed(2), `catalogue ${b.perEntry.toFixed(2)}`, 'layers')}
-      ${tile('Indexed size', k.bytes ? fmtBytes(k.bytes) : '0 B', k.susp ? `${fmtN(k.susp)} suspect sizes left out` : 'every size counted', 'db')}
+      ${D.detailReady ? tile('Indexed size', k.bytes ? fmtBytes(k.bytes) : '0 B', k.susp ? `${fmtN(k.susp)} suspect sizes left out` : 'every size counted', 'db')
+        : tile('Indexed size', '<span class="muted" role="status" aria-label="Loading">…</span>', k.susp ? `${fmtN(k.susp)} suspect sizes left out` : 'arriving with the titles', 'db')}
       ${tile('With achievements', fmtN(k.ra), `${fmtN(k.ach)} in total`, 'trophy')}</div>`;
 
     // treemap
-    const tm = App.ui.treemap;
+    const tm = treemapMeasure();
     const tmVals = S.groupBy('plat', tm);
     const tmTotal = tmVals.reduce((a, c) => a + c, 0) || 1;
     const fmtTm = tm === 'bytes' ? v => fmtBytes(v, 0) : fmtN;
     const tmRows = dims.platforms.map((p, i) => ({ i, p, v: tmVals[i] })).filter(r => r.v > 0).sort((a, c) => c.v - a.v);
     const tmCard = chartCard({
       id: 'treemap', cls: 's8', title: 'Where the catalogue sits', sub: 'Area is the share of the slice. Click a tile to filter to that platform.',
-      acts: `<div class="seg" role="group" aria-label="Size by">${[['entries', 'Entries'], ['links', 'Links'], ['bytes', 'Size']].map(([m, l]) => `<button data-act="tm" data-m="${m}" aria-pressed="${tm === m}">${l}</button>`).join('')}</div>`,
+      acts: `<div class="seg" role="group" aria-label="Size by">${[['entries', 'Entries'], ['links', 'Links'], ['bytes', 'Size']].map(([m, l]) => `<button data-act="tm" data-m="${m}" aria-pressed="${tm === m}"${m === 'bytes' && !D.detailReady ? ' disabled data-tip="The sizes are still loading"' : ''}>${l}</button>`).join('')}</div>`,
       body: '<div class="tm" id="tm"></div>',
       twin: twinHTML([{ label: 'Platform' }, { label: 'Brand' }, { label: tm, right: true }, { label: 'Share', right: true }], tmRows.map(r => [r.p.name, dims.brands[r.p.brand], fmtTm(r.v), pct(r.v, tmTotal)])),
     });
@@ -100,7 +103,7 @@ App.views.overview = {
     Covers.watch(root);
     const el = $('#tm', root);
     if (!el || !el.offsetParent) return;
-    const { S, D } = App, tm = App.ui.treemap, vals = S.groupBy('plat', tm), total = vals.reduce((a, c) => a + c, 0) || 1;
+    const { S, D } = App, tm = treemapMeasure(), vals = S.groupBy('plat', tm), total = vals.reduce((a, c) => a + c, 0) || 1;
     const fmt = tm === 'bytes' ? v => fmtBytes(v, 0) : fmtN;
     const groups = D.dims.brands.map((name, bi) => ({ name, children: D.dims.platforms.map((p, i) => ({ id: i, code: p.code, name: p.name, brand: p.brand, value: vals[i] })).filter(c => c.brand === bi) }));
     el.style.height = Math.round(clamp(el.clientWidth * 0.52, 300, 420)) + 'px';
