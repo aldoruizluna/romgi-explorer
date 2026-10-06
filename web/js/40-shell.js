@@ -12,7 +12,7 @@ const TABS = [
 ];
 const DEFAULT_UI = {
   view: 'overview', open: ['brand', 'plat', 'src', 'reg'], showAll: [], find: {}, twin: [],
-  browse: { mode: 'table', sortKey: 'title', dir: 1, density: 'cozy', artOnly: true, galSort: 'ra' },
+  browse: { mode: 'table', sortKey: 'title', dir: 1, density: 'cozy', artOnly: true, galSort: 'ra', group: true },
   pivot: { row: 'plat', col: 'src', measure: 'links', norm: 'none', top: 20, sort: 'value', totals: true },
   treemap: 'entries', stack: 'abs', sqlpeek: false, schemaTable: 'entries', sqlText: '',
 };

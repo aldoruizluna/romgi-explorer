@@ -35,7 +35,7 @@ function entryCells(i) {
   const flags = D.flagLabels(i);
   const src = D.comboSources(E.smask[i]).map(s => `<i class="sd" style="--c:${D.srcVar(s)}" data-tip="${esc(D.dims.sources[s].short)}"></i>`).join('');
   return {
-    title: `<span class="title" data-tip="${esc(fixed ? 'Stored as: ' + E.title[i] : JSON.stringify(E.title[i]))}">${esc(D.titleShown(i))}</span>${fixed ? '<span class="tg warn" data-tip="The stored title is scrambled. Showing the repaired text.">repaired</span>' : ''}`,
+    title: `<span class="title" data-tip="${esc(fixed ? 'Stored as: ' + E.title[i] : JSON.stringify(E.title[i]))}">${esc(D.titleShown(i))}</span>${fixed ? '<span class="tg warn" data-tip="The stored title is scrambled. Showing the repaired text.">repaired</span>' : ''}${editionsChip(i)}`,
     platform: `<span class="cp">${esc(D.platformOf(i).code)}</span>`,
     region: regChips(D.regIds(i)),
     flags: flagTags(flags.filter(f => f.id !== 'moji')),
@@ -64,7 +64,7 @@ function linkCells(l) {
 function galCardHTML(i) {
   const D = App.D, p = D.platformOf(i), url = D.caps.art ? D.artUrl(i) : null;
   return `<button class="gcard" data-act="open" data-i="${i}"><span class="art">${url ? `<img data-src="${esc(url)}" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" alt="">` : ''}<span class="ph">${esc(p.code)}<small>${esc(D.regIds(i).map(r => REG_CODE[r]).join(' '))}</small></span></span>
-    <span class="meta"><span class="t">${esc(D.titleShown(i))}</span><span class="s">${esc(p.code)} · ${esc(D.regIds(i).map(r => REG_CODE[r]).join(' ') || 'no region')}</span><span class="row">${D.comboSources(D.E.smask[i]).map(s => `<i class="sd" style="--c:${D.srcVar(s)}"></i>`).join('')}${D.E.ran[i] ? `<span class="ra">${icon('trophy', 12)}${D.E.ran[i]}</span>` : ''}</span></span></button>`;
+    <span class="meta"><span class="t">${esc(D.titleShown(i))}</span><span class="s">${esc(p.code)} · ${esc(D.regIds(i).map(r => REG_CODE[r]).join(' ') || 'no region')}${editionsChip(i)}</span><span class="row">${D.comboSources(D.E.smask[i]).map(s => `<i class="sd" style="--c:${D.srcVar(s)}"></i>`).join('')}${D.E.ran[i] ? `<span class="ra">${icon('trophy', 12)}${D.E.ran[i]}</span>` : ''}</span></span></button>`;
 }
 /** A cover starts downloading only when its card is within reach of the screen, a little sooner than the browser's own lazy loading,
  *  so a phone does not fetch a shelf it has not scrolled to. */
@@ -87,8 +87,27 @@ const GAL_SORTS = { ra: ['ra', -1, 'Most achievements'], title: ['title', 1, 'A 
 function galleryIds() {
   const { S, D } = App, b = App.ui.browse, [key, dir] = GAL_SORTS[b.galSort] || GAL_SORTS.ra;
   const ids = S.sorted('entries', key, dir);
-  return b.artOnly === false ? ids : ids.filter(i => D.E.artk[i] !== 0);
+  return groupEditions(b.artOnly === false ? ids : ids.filter(i => D.E.artk[i] !== 0));
 }
+/** One entry per release family, in the order given: the best edition among those the slice shows. Off, or counting links, it is the list as it is. */
+function groupEditions(ids) {
+  const { D, S } = App, b = App.ui.browse;
+  if (b.group === false || S.state.grain !== 'entries') return ids;
+  const E = D.E, best = new Int32Array(D.nFam).fill(-1), score = new Float32Array(D.nFam);
+  for (let k = 0; k < ids.length; k++) {
+    const i = ids[k], f = E.fam[i], s = D.editionScore(i);
+    if (best[f] < 0 || s > score[f]) { best[f] = i; score[f] = s; }
+  }
+  const out = new Uint32Array(ids.length);
+  let n = 0;
+  for (let k = 0; k < ids.length; k++) if (best[E.fam[ids[k]]] === ids[k]) out[n++] = ids[k];
+  return out.subarray(0, n);
+}
+/** The "x3" beside a title that has other editions in the catalogue. */
+const editionsChip = i => {
+  const D = App.D, n = D.famSize(i);
+  return n > 1 && App.ui.browse.group !== false ? `<span class="eds-chip" data-tip="${n} editions in the catalogue: regions, revisions, discs. Open it to see them.">×${n}</span>` : '';
+};
 
 const VT = { ids: null, rh: 40, cols: null, grain: 'entries', raf: 0 };
 function vtPaint() {
@@ -123,7 +142,7 @@ App.views.browse = {
     const pri = c => (c.sort === sortKey ? 100 : c.pri);          // the column you sort by always stays visible
     const room = Math.max(320, root.clientWidth - 32);
     while (cols.length > 3 && cols.reduce((a, c) => a + minOf(c), 0) + cols.length * 10 + 28 > room) { const drop = cols.reduce((m, c) => (pri(c) < pri(m) ? c : m)); cols = cols.filter(c => c !== drop); }
-    const ids = b.mode === 'gallery' && g === 'entries' ? galleryIds() : S.sorted(g, sortKey, b.dir);
+    const ids = b.mode === 'gallery' && g === 'entries' ? galleryIds() : groupEditions(S.sorted(g, sortKey, b.dir));
     VT.ids = ids; VT.grain = g; VT.cols = cols; VT.rh = b.density === 'compact' ? 32 : 40;
     const minw = cols.reduce((a, c) => a + minOf(c), 0) + cols.length * 10 + 28;
     const head = cols.map(c => c.sort
@@ -133,10 +152,11 @@ App.views.browse = {
     root.innerHTML = `<div class="vt-wrap">
       <div class="vt-bar">
         <div class="seg" role="group" aria-label="Layout"><button data-act="bmode" data-m="table" aria-pressed="${b.mode === 'table'}">${icon('table', 14)}Table</button><button data-act="bmode" data-m="gallery" aria-pressed="${b.mode === 'gallery'}" ${g === 'links' ? 'disabled' : ''}>${icon('grid', 14)}Gallery</button></div>
+        ${g === 'entries' ? `<label class="chk"><input type="checkbox" id="b-group"${b.group !== false ? ' checked' : ''}><span>Group editions</span></label>` : ''}
         ${b.mode === 'gallery' ? `<label class="chk"><input type="checkbox" id="gal-art"${b.artOnly !== false ? ' checked' : ''}><span>Box art only</span></label>
           <select id="gal-sort" aria-label="Sort the gallery">${Object.entries(GAL_SORTS).map(([v, [, , l]]) => `<option value="${v}"${(b.galSort || 'ra') === v ? ' selected' : ''}>${l}</option>`).join('')}</select>` : ''}
         ${b.mode === 'table' ? `<div class="seg" role="group" aria-label="Density"><button data-act="bdens" data-m="cozy" aria-pressed="${b.density !== 'compact'}">Cozy</button><button data-act="bdens" data-m="compact" aria-pressed="${b.density === 'compact'}">Compact</button></div>` : ''}
-        <span class="muted"><span class="num">${fmtN(ids.length)}</span> ${g}${ids.length ? '' : ' match'}</span>
+        <span class="muted"><span class="num">${fmtN(ids.length)}</span> ${g === 'entries' && b.group !== false ? 'titles' : g}${ids.length ? '' : ' match'}</span>
         <span class="sp"></span>
         <button class="btn sm" data-act="export" data-m="copy" data-tip="Copy up to 3,000 rows as tab-separated text">${icon('copy', 13)}Copy</button>
         ${canDl ? `<button class="btn sm" data-act="export" data-m="csv" data-tip="Save every row in this slice">${icon('download', 13)}CSV</button>` : ''}
@@ -150,6 +170,7 @@ App.views.browse = {
   after(root) {
     if (!App.D.detailReady) return;
     const b = App.ui.browse;
+    $('#b-group', root)?.addEventListener('change', e => { b.group = e.target.checked; App._galN = 0; App.saveUI(); App.renderView(); });
     if (b.mode === 'gallery') {
       $('#gal-art', root)?.addEventListener('change', e => { b.artOnly = e.target.checked; App._galN = 0; App.saveUI(); App.renderView(); });
       $('#gal-sort', root)?.addEventListener('change', e => { b.galSort = e.target.value; App._galN = 0; App.saveUI(); App.renderView(); });
@@ -232,7 +253,8 @@ const Drawer = {
     const i = App.sel, { D } = App, E = D.E, L = D.L, p = D.platformOf(i), slug = D.slugOf(i), fixed = D.fixTitle(i);
     const flags = D.flagLabels(i), regs = D.regIds(i), g = D.groupOf(i), [a, z] = D.entryLinks(i);
     const url = D.caps.art ? D.artUrl(i) : null;
-    const same = D.sameTitle(i).filter(j => j !== i);
+    const eds = D.famMembers(i).filter(j => j !== i);
+    const edLabel = j => { const tags = (D.titleShown(j).match(/[\(\[][^\)\]]*[\)\]]/g) || []).join(' '); return tags || 'standard'; };
     const srcs = D.comboSources(E.smask[i]);
     const links = [];
     for (let l = a; l < z; l++) links.push(l);
@@ -269,7 +291,7 @@ const Drawer = {
         <section><h3 class="sec-h">${icon('link', 14)}Links<span class="eyebrow">${links.length} in the catalogue</span></h3><div class="lk">${lk}</div>
           ${D.caps.sql ? '' : `<div class="notice info" style="margin-top:10px">${icon('info', 16)}<div>File names, URLs and raw rows appear when the explorer runs locally against the database.</div></div>`}</section>
         ${g ? `<section><h3 class="sec-h">${icon('disc', 14)}Disc set<span class="eyebrow">${esc(g.title)}</span></h3><div class="sib">${g.members.map(([j, lab]) => `<button class="${j === i ? 'cur' : ''}" data-act="open" data-i="${j}">${esc(lab)}</button>`).join('')}</div></section>` : ''}
-        ${same.length ? `<section><h3 class="sec-h">${icon('layers', 14)}Same title, other entries<span class="eyebrow">${same.length}</span></h3><div class="sib">${same.map(j => `<button data-act="open" data-i="${j}">${regChips(D.regIds(j))}</button>`).join('')}</div></section>` : ''}
+        ${eds.length ? `<section><h3 class="sec-h">${icon('layers', 14)}Other editions<span class="eyebrow">${eds.length}</span></h3><div class="eds">${eds.map(j => `<button class="ed" data-act="open" data-i="${j}">${regChips(D.regIds(j))}<span class="ed-t">${esc(edLabel(j))}</span><span class="ed-s">${D.comboSources(E.smask[j]).map(s => `<i class="sd" style="--c:${D.srcVar(s)}"></i>`).join('')}</span><span class="num ed-z">${E.sumSize[j] ? fmtBytes(E.sumSize[j]) : '·'}</span></button>`).join('')}</div></section>` : ''}
         <section><h3 class="sec-h">${icon('code', 14)}This entry in SQL</h3><div class="codebox"><pre>${hiSQL(sqlEntry)}</pre><div class="copy"><button class="btn sm" data-act="copy" data-text="${esc(sqlEntry)}">${icon('copy', 13)}Copy</button></div></div></section>
         <section class="raw" hidden><h3 class="sec-h">${icon('db', 14)}Raw rows</h3><div class="codebox"><pre></pre></div></section>
       </div>`;

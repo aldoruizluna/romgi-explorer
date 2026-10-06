@@ -70,6 +70,15 @@ const server = http.createServer((req, res) => {
     if (await page.$('[data-act="bmode"][data-m="table"][aria-pressed="false"]')) await page.click('[data-act="bmode"][data-m="table"]');
     await page.waitForSelector('.vt-row');
     const all = await page.evaluate(() => App.S.kpis().entries);
+    const grouped = await page.evaluate(() => document.querySelector('.vt-bar')?.textContent.match(/([\d,]+)\s+titles/)?.[1]);
+    assert.ok(grouped, 'Browse does not say how many titles it shows when editions are grouped');
+    await page.click('#b-group');
+    await page.waitForFunction(() => /entries/.test(document.querySelector('.vt-bar').textContent) && !/titles/.test(document.querySelector('.vt-bar').textContent), null, { timeout: 15000 });
+    const ungrouped = await page.evaluate(() => document.querySelector('.vt-bar').textContent.match(/([\d,]+)\s+entries/)?.[1]);
+    assert.ok(+grouped.replace(/,/g, '') < +ungrouped.replace(/,/g, ''), `grouping did not reduce the list: ${grouped} titles vs ${ungrouped} entries`);
+    await page.click('#b-group');
+    await page.waitForFunction(() => /titles/.test(document.querySelector('.vt-bar').textContent), null, { timeout: 15000 });
+    ok(`grouping editions turns ${ungrouped} entries into ${grouped} titles, and back`);
     await page.fill('#q', 'mario');
     await page.waitForFunction(n => App.S.kpis().entries < n, all, { timeout: 15000 });
     const found = await page.evaluate(() => ({ n: App.S.kpis().entries, rows: document.querySelectorAll('.vt-row').length, first: document.querySelector('.vt-row')?.textContent }));

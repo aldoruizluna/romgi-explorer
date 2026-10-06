@@ -177,7 +177,22 @@ function* prepareSteps(raw) {
   }
 
   if (nextTitle !== re.ntitles) throw new Error('The title groups do not add up: the dataset is damaged.');
-  const D = { raw, dims, E, L, nTitles: re.ntitles, meta: raw.meta, caps: raw.meta.caps, slugX: new Map(), fixes: new Map(), detailReady: false };
+  // release families: each entry says how far back the previous member of its family is (0 = the first); then the members are grouped
+  E.fam = new Uint32Array(nE);
+  let nextFam = 0;
+  for (let i = 0; i < nE; i++) { const back = re.fam[i]; E.fam[i] = back === 0 ? nextFam++ : E.fam[i - back]; }
+  if (nextFam !== re.nfam) throw new Error('The release families do not add up: the dataset is damaged.');
+  E.famStart = new Uint32Array(nextFam + 1);
+  for (let i = 0; i < nE; i++) E.famStart[E.fam[i] + 1]++;
+  for (let f = 0; f < nextFam; f++) E.famStart[f + 1] += E.famStart[f];
+  E.famList = new Uint32Array(nE);
+  const fill = E.famStart.slice(0, nextFam);
+  for (let i = 0; i < nE; i++) E.famList[fill[E.fam[i]]++] = i;       // entries in order, so a family's members come out in catalogue order
+  yield;
+  const flagBits = ids => dims.flags.reduce((m, f, b) => (ids.includes(f.id) ? m | (1 << b) : m), 0);
+  const D = { raw, dims, E, L, nTitles: re.ntitles, nFam: nextFam,
+    addonMask: flagBits(['dlc', 'addon', 'update', 'theme']),           // add-on content is never counted as a game
+    lesserMask: flagBits(['demo', 'trial', 'beta', 'proto', 'sample', 'unl', 'aftermarket', 'pirate', 'alt', 'baddump', 'moji', 'padded', 'empty']), meta: raw.meta, caps: raw.meta.caps, slugX: new Map(), fixes: new Map(), detailReady: false };
   D.platformOf = i => dims.platforms[E.platform[i]];
   D.slugOf = i => D.slugX.get(i) ?? (slugifyAscii(E.title[i]) + '-' + dims.platforms[E.platform[i]].id + D.regIds(i).map(r => '-' + r).join(''));
   D.regIds = i => { const out = []; let c = E.reg[i]; while (c) { out.push(dims.regions[c % 5 - 1].id); c = Math.floor(c / 5); } return out; };
@@ -195,6 +210,14 @@ function* prepareSteps(raw) {
   D.comboSources = mask => dims.sources.map((_, s) => s).filter(s => mask >> s & 1);
   D.entryLinks = i => [E.start[i], E.start[i + 1]];
   D.groupOf = i => (E.group[i] >= 0 ? dims.groups[E.group[i]] : null);
+  D.famSize = i => E.famStart[E.fam[i] + 1] - E.famStart[E.fam[i]];
+  D.famMembers = i => Array.from(E.famList.subarray(E.famStart[E.fam[i]], E.famStart[E.fam[i] + 1]));
+  /** Which edition stands for its family when only one can be shown: a proper release over a beta, a US, then European, then
+   *  Japanese one, with box art, from more than one source. A higher number is a better pick. */
+  D.editionScore = i => {
+    const rb = E.regBits[i];
+    return (E.flags[i] & D.lesserMask ? 0 : 32) + (rb & 1 ? 8 : rb & 2 ? 4 : rb & 4 ? 2 : 0) + (E.artk[i] ? 1 : 0) + (E.nsrc[i] > 1 ? 0.5 : 0);
+  };
   D.sameTitle = i => { const out = []; const k = E.tkey[i]; for (let j = Math.max(0, i - 40); j < Math.min(nE, i + 41); j++) if (E.tkey[j] === k) out.push(j); return out; };
   if (re.title && rl.size) yield* attachDetailSteps(D, raw);        // a whole dataset (local server, single file, tests) carries its detail
   return D;

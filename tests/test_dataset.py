@@ -54,6 +54,33 @@ for plat, title, k in zip(E["platform"], E["title"], tkey):
 check("one title group per platform and title", sum(1 for s in groups.values() if len(s) != 1), 0)
 check("title groups are numbered 0..n-1 without gaps", sorted({next(iter(s)) for s in groups.values()}) == list(range(E["ntitles"])), True)
 
+# release families: rebuilt here from titles, title fixes, flags and platforms, then compared with what the builder wrote
+import re as _re
+tags = _re.compile(r"\s*[\(\[][^\)\]]*[\)\]]")
+add_bits = sum(1 << b for b, f in enumerate(D["flags"]) if f["id"] in ("dlc", "addon", "update", "theme"))
+fixes = {int(k): v for k, v in E["fix"].items()}
+key = [(E["platform"][i], _re.sub(r"\s+", " ", tags.sub("", fixes.get(i) or E["title"][i])).strip().lower(), 1 if E["flags"][i] & add_bits else 0) for i in range(E["n"])]
+size = collections.Counter(key)
+fam, nxt = [], 0
+for i, back in enumerate(E["fam"]):
+    if back == 0:
+        fam.append(nxt); nxt += 1
+    else:
+        fam.append(fam[i - back])
+check("families decode to nfam ids", nxt, E["nfam"])
+members = collections.defaultdict(list)
+for i, f in enumerate(fam):
+    members[f].append(i)
+check("families whose members differ in platform, base title or kind (outside the size cap)",
+      sum(1 for m in members.values() if len({key[i] for i in m}) != 1 and len(m) > 1), 0)
+check("families larger than the cap", sum(1 for m in members.values() if len(m) > 60), 0)
+by_key = collections.defaultdict(set)
+for i in range(E["n"]):
+    if size[key[i]] <= 60:
+        by_key[key[i]].add(fam[i])
+check("entries sharing platform, base title and kind that were split across families (outside the cap)", sum(1 for f in by_key.values() if len(f) != 1), 0)
+check("add-on and game entries share a family", sum(1 for m in members.values() if len({bool(E["flags"][i] & add_bits) for i in m}) > 1), 0)
+
 # the table is stored in the order the SQL printed under "SQL behind this view" sorts by (SQLite's own comparator ranks the keys)
 rank = dict(con.execute(f"SELECT e.title, DENSE_RANK() OVER (ORDER BY {ds['meta']['sql_title_order']}) FROM entries e"))
 seq = [rank[t] for t in E["title"]]

@@ -20,7 +20,7 @@ const ctx = vm.createContext({ window: { ROMGI: { mode: 'test', data: 'x' } }, A
   Uint8Array, Uint16Array, Uint32Array, Int16Array, Int32Array, Float64Array, toast() {}, Drawer: {}, $: () => ({}) });
 const api = vm.runInContext(code + `
 const DEFAULT_UI = { view: 'overview', open: [], showAll: [], find: {}, twin: [],
-  browse: { mode: 'table', sortKey: 'title', dir: 1, density: 'cozy', artOnly: true, galSort: 'ra' },
+  browse: { mode: 'table', sortKey: 'title', dir: 1, density: 'cozy', artOnly: true, galSort: 'ra', group: true },
   pivot: { row: 'plat', col: 'src', measure: 'links', norm: 'none', top: 20, sort: 'value', totals: true }, treemap: 'entries', stack: 'abs' };
 ({ prepare, Slicer, Url, DEFAULT_UI })`, ctx);
 const ok = msg => console.log('ok  ', msg);
@@ -67,7 +67,7 @@ for (let r = 0; r < rounds; r++) {
   S.state = st; S.changed();
   App.ui = JSON.parse(JSON.stringify(api.DEFAULT_UI));
   App.ui.view = pick(['overview', 'browse', 'dice', 'sources']);
-  if (App.ui.view === 'browse') Object.assign(App.ui.browse, { sortKey: pick(['title', 'size', 'links', 'ra']), dir: pick([1, -1]), mode: pick(['table', 'gallery']), density: pick(['cozy', 'compact']) });
+  if (App.ui.view === 'browse') Object.assign(App.ui.browse, { sortKey: pick(['title', 'size', 'links', 'ra']), dir: pick([1, -1]), mode: pick(['table', 'gallery']), density: pick(['cozy', 'compact']), group: pick([true, false]), artOnly: pick([true, false]) });
   if (App.ui.view === 'dice') Object.assign(App.ui.pivot, { row: pick(['plat', 'brand', 'fmt']), col: pick(['src', 'reg', 'all']), measure: pick(['links', 'entries', 'bytes']), norm: pick(['none', 'row', 'lift']), top: pick([10, 0]) });
   const want = canon(S.serialize()), wantUi = JSON.stringify(App.ui);
   const hash = '#' + api.Url.encode();

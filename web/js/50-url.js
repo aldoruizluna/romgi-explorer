@@ -57,6 +57,7 @@ const Url = {
     set(ui.browse, 'sortKey', word(u.s)); set(ui.browse, 'dir', num(u.d, [1, -1])); set(ui.browse, 'mode', one(u.m, ['table', 'gallery']));
     set(ui.browse, 'galSort', word(u.gs)); set(ui.browse, 'density', one(u.dn, ['cozy', 'compact']));
     if (u.ao !== undefined) ui.browse.artOnly = u.ao !== '0';
+    if (u.gr !== undefined) ui.browse.group = u.gr !== '0';
     const facetId = v => (v === 'all' || S.byId[v] ? v : undefined);
     set(ui.pivot, 'row', S.byId[u.pr] ? u.pr : undefined); set(ui.pivot, 'col', facetId(u.pc));
     set(ui.pivot, 'measure', one(u.pm, ['entries', 'links', 'bytes', 'avg', 'ra'])); set(ui.pivot, 'norm', one(u.pn, ['none', 'row', 'col', 'total', 'lift']));
@@ -86,7 +87,7 @@ const Url = {
     const diff = (obj, base, key, name, fmt = v => v) => { if (obj[key] !== base[key]) add(name, fmt(obj[key])); };
     if (ui.view === 'browse') {
       diff(ui.browse, d.browse, 'sortKey', 's'); diff(ui.browse, d.browse, 'dir', 'd'); diff(ui.browse, d.browse, 'mode', 'm'); diff(ui.browse, d.browse, 'galSort', 'gs');
-      diff(ui.browse, d.browse, 'density', 'dn'); diff(ui.browse, d.browse, 'artOnly', 'ao', v => (v ? '1' : '0'));
+      diff(ui.browse, d.browse, 'density', 'dn'); diff(ui.browse, d.browse, 'artOnly', 'ao', v => (v ? '1' : '0')); diff(ui.browse, d.browse, 'group', 'gr', v => (v ? '1' : '0'));
     } else if (ui.view === 'dice') {
       for (const [k, name] of [['row', 'pr'], ['col', 'pc'], ['measure', 'pm'], ['norm', 'pn'], ['top', 'pt'], ['sort', 'ps']]) diff(ui.pivot, d.pivot, k, name);
       diff(ui.pivot, d.pivot, 'totals', 'pz', v => (v ? '1' : '0'));

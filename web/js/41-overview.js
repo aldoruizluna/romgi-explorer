@@ -62,7 +62,7 @@ App.views.overview = {
     const kp = `<div class="s8 kpis">
       ${tile('Links', fmtN(k.links), `of ${fmtN(b.links)}`, 'link')}
       ${tile('Platforms', fmtN(k.platforms), `of ${fmtN(dims.platforms.length)}`, 'grid')}
-      ${tile('Distinct titles', fmtN(k.titles), `of ${fmtN(D.nTitles)} by platform`, 'tag')}
+      ${tile('Games', fmtN(k.games), `of ${fmtN(b.games)} · regions and revisions count once, add-ons not at all`, 'tag')}
       ${tile('Links per entry', k.perEntry.toFixed(2), `catalogue ${b.perEntry.toFixed(2)}`, 'layers')}
       ${sizeTile(k, D)}
       ${tile('With achievements', fmtN(k.ra), `${fmtN(k.ach)} in total`, 'trophy')}</div>`;

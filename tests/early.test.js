@@ -54,7 +54,7 @@ const same = (a, b, what) => { assert.strictEqual(a.length, b.length, `${what}: 
   for (const sl of slices) {
     apply(sl, S); apply(sl, Sf);
     const k = S.kpis(), kf = Sf.kpis();
-    for (const f of ['entries', 'links', 'titles', 'platforms', 'sources', 'ra', 'ach', 'art', 'ser', 'susp', 'withSize']) assert.strictEqual(k[f], kf[f], `kpis.${f} under ${JSON.stringify(sl)}`);
+    for (const f of ['entries', 'links', 'titles', 'games', 'addons', 'platforms', 'sources', 'ra', 'ach', 'art', 'ser', 'susp', 'withSize']) assert.strictEqual(k[f], kf[f], `kpis.${f} under ${JSON.stringify(sl)}`);
     assert.strictEqual(k.bytes, 0, 'the size total must stay 0 until the sizes arrive');
     for (const d of dimsOf) for (const m of ['entries', 'links']) same(S.groupBy(d, m), Sf.groupBy(d, m), `groupBy(${d}, ${m}) under ${JSON.stringify(sl)}`);
     same(S.crosstab('plat', 'src', 'links').cells, Sf.crosstab('plat', 'src', 'links').cells, 'crosstab plat x src');

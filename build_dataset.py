@@ -31,7 +31,7 @@ from urllib.parse import urlparse
 from drift import MAX_SOURCES, check_catalogue
 
 HERE = Path(__file__).resolve().parent
-BUILD_VERSION = 10   # bump when the dataset format changes; serve.py keys its cache on it
+BUILD_VERSION = 11   # bump when the dataset format changes; serve.py keys its cache on it
 
 # The sources romgi has had so far. Their order is their colour slot (never their rank), so a source keeps its colour. A source that
 # romgi adds later is appended after these and takes the next free slot; beyond SOURCE_SLOTS they share the neutral last slot.
@@ -40,6 +40,17 @@ SOURCE_ORDER = ["minerva", "internet_archive", "nopaystation", "mariocube"]
 SOURCE_SHORT = {"minerva": "MiNERVA", "internet_archive": "Internet Archive",
                 "nopaystation": "NoPayStation", "mariocube": "MarioCube"}
 SOURCE_SLOTS = 8
+
+# A family is one game in its many files: the same title on one platform in several regions, revisions, betas and discs.
+# Add-on content (DLC, updates, themes) is a family of its own kind so it never mixes with the game it belongs to.
+ADDON_FLAGS = ("dlc", "addon", "update", "theme")
+FAMILY_CAP = 60          # a group this big is not editions of one product (a thousand book downloads, an update chain): each entry stands alone
+_TAGS = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]")
+
+
+def base_title(title: str) -> str:
+    """The title with every (...) and [...] tag taken off, spaces collapsed, lower case: what regions and revisions share."""
+    return re.sub(r"\s+", " ", _TAGS.sub("", title)).strip().lower()
 REGION_ORDER = ["us", "eu", "jp", "other"]
 REGION_NAMES = {"us": "USA", "eu": "Europe", "jp": "Japan", "other": "Other"}
 
@@ -346,6 +357,17 @@ def build(db_path, *, local=False, version_json=None, history_json=None, profile
         if derived != slug or not title.isascii():
             slug_x[i] = slug
 
+    # ------------------------------------------------------------------ release families
+    addon_bits = sum(1 << b for b, f in enumerate(FLAGS) if f["id"] in ADDON_FLAGS)
+    fam_key = [(e_plat[i], base_title(fixes.get(i) or e_title[i]), 1 if e_flags[i] & addon_bits else 0) for i in range(nE)]
+    fam_size = collections.Counter(fam_key)
+    fam_key = [k if fam_size[k] <= FAMILY_CAP else ("alone", i) for i, k in enumerate(fam_key)]
+    e_fam, last_member = [], {}
+    for i, k in enumerate(fam_key):
+        e_fam.append(i - last_member[k] if k in last_member else 0)      # how far back the family's previous entry is; 0 for the first
+        last_member[k] = i
+    n_fam = len(last_member)
+
     # ------------------------------------------------------------------ links
     type_counts = collections.Counter()
     fmt_counts = collections.Counter()
@@ -434,7 +456,7 @@ def build(db_path, *, local=False, version_json=None, history_json=None, profile
         "entries": {
             "n": nE, "title": e_title, "platform": e_plat, "reg": e_reg, "rom": e_rom, "ra": e_ra, "ran": e_ran,
             "flags": e_flags, "nl": e_nl, "artk": e_artk, "group": e_group, "slug_x": slug_x, "fix": fixes,
-            "initial": e_initial, "tback": e_tback, "hasser": e_hasser, "ntitles": len(tkey_seen),
+            "initial": e_initial, "tback": e_tback, "hasser": e_hasser, "ntitles": len(tkey_seen), "fam": e_fam, "nfam": n_fam,
             **({"art": e_art} if local else {}),
         },
         "links": {"n": nL, "src": l_src, "type": l_type, "fmt": l_fmt, "size": l_size, "sb": l_sb, "pack": l_pack,

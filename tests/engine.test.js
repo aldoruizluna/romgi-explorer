@@ -135,6 +135,16 @@ for (let round = 0; round < rounds; round++) {
 S.state = { grain: 'entries', q: '', f: {} }; S.changed();
 expect('empty slice entries', S.res.nVisE, one('SELECT COUNT(*) FROM entries'));
 expect('empty slice links', S.res.nVisL, one('SELECT COUNT(*) FROM links'));
+// release families: games and add-ons partition the entries, and a game is counted once however many editions it has
+{
+  S.state = { grain: 'entries', q: '', f: {} }; S.changed();
+  const k = S.kpis(), E = D.E, seen = new Set(); let add = 0;
+  for (let i = 0; i < E.n; i++) { if (E.flags[i] & D.addonMask) add++; else seen.add(E.fam[i]); }
+  expect('games count', k.games, seen.size); expect('add-on count', k.addons, add);
+  expect('games and add-ons cover every entry or fewer (editions merge)', k.games + k.addons <= k.entries, true);
+  S.state = { grain: 'entries', q: '', f: {} }; S.fs('plat').inc.add(0); S.changed();
+  const k2 = S.kpis(); expect('a filtered slice has no more games than the whole', k2.games <= k.games, true);
+}
 // with nothing filtered the tallies made at start stand in for a count; they must equal one
 for (const grain of ['entries', 'links']) {
   S.state = { grain, q: '', f: {} }; S.changed();

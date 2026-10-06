@@ -496,11 +496,13 @@ class Slicer {
     if (free && this.baseK && this.baseK.sized === sized) return (this.cache.k = this.baseK);
     const { E, L, res, D } = this;
     const seenT = new Uint8Array(D.nTitles), plats = new Uint8Array(D.dims.platforms.length), srcs = new Uint8Array(D.dims.sources.length);
-    let titles = 0, ra = 0, ach = 0, art = 0, ser = 0, bytes = 0, susp = 0, withSize = 0;
+    let titles = 0, ra = 0, ach = 0, art = 0, ser = 0, bytes = 0, susp = 0, withSize = 0, games = 0, addons = 0;
+    const seenF = new Uint8Array(D.nFam), addMask = D.addonMask;
     for (let i = 0; i < E.n; i++) {
       if (res.failE[i] || (res.linkActive && !res.anyPass[i])) continue;
       plats[E.platform[i]] = 1;
       if (!seenT[E.tkey[i]]) { seenT[E.tkey[i]] = 1; titles++; }
+      if (E.flags[i] & addMask) addons++; else if (!seenF[E.fam[i]]) { seenF[E.fam[i]] = 1; games++; }
       if (E.ran[i]) { ra++; ach += E.ran[i]; }
       if (E.artk[i]) art++;
       if (E.hasSer[i]) ser++;
@@ -513,7 +515,7 @@ class Slicer {
       if (b >= 1 && b <= 5) { if (size) bytes += size[l]; withSize++; } else if (b === 6) susp++;
     }
     const sum = a => a.reduce((x, y) => x + y, 0);
-    const k = { entries: res.nVisE, links: res.nVisL, titles, platforms: sum(plats), sources: sum(srcs), ra, ach, art, ser, bytes, susp, withSize, sized,
+    const k = { entries: res.nVisE, links: res.nVisL, titles, games, addons, platforms: sum(plats), sources: sum(srcs), ra, ach, art, ser, bytes, susp, withSize, sized,
       perEntry: res.nVisE ? res.nVisL / res.nVisE : 0 };
     if (free) this.baseK = k;
     return (this.cache.k = k);

@@ -34,7 +34,8 @@ It listens on `127.0.0.1` only and opens the database read-only.
   betas, and more; each sets the filters for you) and a daily shelf of six covers, then the treemap of platforms, source mix, regions,
   size classes, release flags, link types, formats and coverage.
 - **Dice** pivot any two dimensions (platform by source, brand by region, flags by brand, ...), as raw values, shares, or versus expected.
-- **Browse** virtual table over 241k entries or 400k links, a box-art gallery (most achievements first, or A to Z, most sources, largest),
+- **Browse** virtual table over 241k entries (grouped into 172k titles by default: a game's regions, revisions and discs are one row with a
+  ×N chip, and its card lists the other editions) or 400k links, a box-art gallery (most achievements first, or A to Z, most sources, largest),
   and a catalogue-card drawer for every entry.
 - **Sources** health, which combinations of sources offer each entry, torrent packs, and the catalogue size over the weekly snapshots.
 - **Links.** The address bar says what the page shows: `#browse?q=mario&f.plat=snes,gba&x.reg=jp&s=size&d=-1&c=<entry>` is a slice, a
