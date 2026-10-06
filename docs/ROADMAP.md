@@ -71,6 +71,7 @@ or sharing, so those items rest on patterns in comparable tools, not on demand h
 5. No framework or build chain without a measured need.
 6. Honest data: every enriched field says where it came from, and unknown is shown as unknown, never as zero.
 7. A failed build leaves the previous site up.
+8. Every external dataset keeps its own credit and stays separable, so it can be removed without touching the rest.
 
 ## A. Keep it alive
 
@@ -141,7 +142,7 @@ each item re-measures them first.
 | F3 | **libretro-database metadata** (genre, developer, publisher, release year and month, players, franchise, ESRB) | Facets (decade, genre, developer, franchise), card fields, virtual collections, "similar" shelves | CC BY-SA 4.0. Each record holds a CRC or serial and also the game's No-Intro name, which is the name in our stored art paths, so entries with libretro art join with no DAT at all. **Checked on SNES (2026-10-06):** 3,439 of 4,571 entries have art (75%), and 3,398 of those matched a developer and 3,389 a genre (99%), so 74% of all SNES entries are covered; for the 1,132 without art a naive title-plus-region guess matched 4%, so they need F1's names or a better normaliser. Platforms with little or no libretro art (PS Vita, Xbox 360, MAME, FinalBurn Neo) get nothing from the name route. Coverage differs a lot by platform (developer rows against DAT entries: SNES 3,850 of 4,268, GBA 3,059 of 3,692, PS1 9,947 of 13,592, PS2 4,726 of 13,891, NES 3,274 of 14,132, DS 132 of 7,701, Saturn none), so measure each platform and show coverage | Name (art path) first; CRC via F1 or serial for the rest | M |
 | F4 | **libretro thumbnails**: screenshots, title screens, logos | Images for the card (C5) | Derived from the box-art path we already store; hot-linked like box art. Licence not stated. A one-entry-per-platform probe found screenshots on 34 of 36 platforms, title screens on 29, logos on 13 | None needed | S |
 | F5 | **Wikidata** (CC0) | An id hub (IGDB, MobyGames, GameFAQs, GameTDB, Redump) plus dates, developers, series | OK. 178,098 game items; only 24–50% of DAT base titles exist there (SNES 40%, PS1 25%, Saturn 24%), and the RetroAchievements id reaches at most 23% of our 9,765 entries. Use for outbound links and series, not as the main source | Title and platform, ids | M |
-| F6 | **GameTDB** XML (Wii, GameCube, DS, 3DS, Wii U, PS3) | Developer, publisher, date, genre, players, synopsis | Its own FAQ and file header ask that the data is not used on a website without permission. Ask first; this also covers the box art we already hot-link from it | Game id, which our art paths embed | S after permission |
+| F6 | **GameTDB** XML (Wii, GameCube, DS, 3DS, Wii U, PS3) | Developer, publisher, date, genre, players, synopsis | Its FAQ and file header ask that the data is not used on a website without permission. **Owner's decision, 2026-10-06:** use it for educational and observational purposes, credited, with no permission request; the overlay stays separable so it can be dropped without touching anything else | Game id, which our art paths embed | S |
 | F7 | **Internet Archive item metadata** | Per-file size and hashes, public date, collection, downloads | Facts, no key, descriptive User-Agent and 429 handling required. Too many requests for all 125k items; use it to check the 4,673 suspect sizes | Item id | S |
 | F8 | **IGDB** | Summary, genres, themes, regional dates, screenshots | OK with attribution, free for non-commercial use, Twitch credentials, 4 requests per second. Run in a build step keyed by the ids from F5; later and optional | IGDB id | L |
 | F9 | **Provenance, credits and coverage.** Each enriched field names its source and version; an "About this data" credits list; a per-platform coverage table; a 200-entry hand-checked join audit with a 99% precision bar | Trust, and it is the licence housekeeping | — | S |
@@ -164,7 +165,7 @@ package URLs and keys: never read into anything public.
 5. **Source fragility.** Games held by one link on a source whose health is down; catalogue entries absent from every DAT go to a
    quarantine list (hacks, translations, stale names).
 
-These are also the findings worth sending upstream (H1).
+These findings also go on the Quality view; no outreach is planned (decision, 2026-10-06).
 
 ## G. More catalogue sources
 
@@ -181,7 +182,7 @@ These are also the findings worth sending upstream (H1).
 
 | ID | What | Why | Size |
 |---|---|---|---|
-| H1 | **Talk to romgi's maintainer.** A short courtesy note, the data-quality findings (6,638 titles with scrambled characters, 4,673 impossible Internet Archive sizes, the outage swings), and two questions: what is planned for the catalogue format, and whether a read-only explorer that carries no download locators is acceptable. Drafted here, sent by you | The README says forks and derivative tools are not supported; better to ask than to guess | S |
+| H1 | *Dropped by the owner, 2026-10-06:* no outreach to anyone. Where the catalogue falls short we fill the gap ourselves; the data-quality findings (6,638 scrambled titles, 4,673 impossible Internet Archive sizes, the outage swings) stay on the Quality view | — | — |
 | H2 | **Say what this is.** A "not affiliated" line, a "Get it in romgi" link to its releases, a name that describes the thing ("an explorer for romgi's catalogue") rather than reusing the app's name | Avoids being taken for the app | S |
 | H3 | **Write down how it works.** Data flow diagram, how a build runs, how to add a facet, a view, an overlay; a CONTRIBUTING file | The next session, or contributor, starts from a page, not from the code | S |
 | H4 | **Analytics: none by default.** If you want numbers, aggregate counts only, no cookies, nothing per person | Matches the no-tracking principle | — |
@@ -198,8 +199,8 @@ Phase 2, make the card worth opening: **C5** with **F4** first (screenshots and 
 Phase 3, understand and decide: **C4**, **E1**, the completeness and audit analyses (F1 and F2 make them possible), **D3**, **C8**,
 **G1** and **G2**.
 
-Phase 4, reach: **C9**, **C11**, **C10**, **C13**, and whatever you choose from G3. **H1** and **H2** belong early if you agree: the
-reply shapes F and G.
+Phase 4, reach: **C9**, **C10**, **C13**, and whatever you choose from G3. **B2** (installable, offline) and **C11** (Spanish and
+English) are confirmed; they follow the card work unless you want them sooner. **H2** (say what this is) belongs early.
 
 A4, B3, B4 and C12 slot in beside whatever they touch. B5 only if the SQL console matters on phones.
 
@@ -215,26 +216,28 @@ A4, B3, B4 and C12 slot in beside whatever they touch. B5 only if the SQL consol
 
 ## Risks
 
-- **Upstream changes.** A new schema or a split database stops the build; A2 makes that loud instead of silent, and H1 asks early.
+- **Upstream changes.** A new schema or a split database stops the build; A2 makes that loud instead of silent, and A1 lets a new source through.
 - **Licences of overlays.** Reference datasets differ (one is CC BY-SA 4.0 and needs attribution; some forbid redistribution of derived
   fields). Each overlay gets a verdict before it is joined, and a credits page.
 - **Join mistakes.** Matching by name can attach the wrong game. Joins are checked on a sample, show their confidence, and a doubtful
   match is left out rather than guessed.
+- **Datasets whose terms ask for permission** (GameTDB's FAQ). Their use rests on the owner's decision of 2026-10-06: educational and
+  observational, credited, each overlay separable so it can be removed on request without touching the rest.
 - **Third-party hosts.** Covers and screenshots come from libretro and GameTDB; both can be slow or change paths. The page degrades to the
   platform tile.
 - **Local data loss.** Browsers can evict local storage; the export file and a nudge to use it are the answer.
 - **Our own measurements.** Several numbers above come from a research pass and are marked unverified; each is re-measured when its item
   starts.
 
-## Decisions for you
+## Decisions
 
-1. **Order.** Robustness first (A, then C1 and C2), or features first? Recommended: robustness first, because it is small.
-2. **Spanish.** Add it, after the card work? Recommended: yes.
-3. **Offline app.** Make the site installable? Recommended: yes.
-4. **Sources.** Tier 1 (reference data) and tier 2 (licensed content) yes? A local-only "bring your own source" later? Never more
-   download hosts on the public site? Recommended: yes, maybe later, never.
-5. **romgi's maintainer and GameTDB.** Send H1 now, or after Phase 2? Recommended: now, because the answer shapes F and G. Separately,
-   ask GameTDB for permission to use its data (F6); it also covers the art we hot-link from it today.
-6. **Name.** Keep "Romgi Catalog Explorer", or a descriptive name that cannot be mistaken for the app?
-7. **Analytics.** None (recommended) or aggregate-only?
-8. **Hosting.** Stay on GitHub Pages (recommended for now), or move for Brotli and immutable caching?
+Answered by the owner on 2026-10-06:
+
+1. **Order:** robustness first (A, then B1, C1, C2).
+2. **Outreach:** none. Nothing is drafted or sent to romgi's maintainer or anyone else. Where others fall short, this project fills the gap.
+3. **External data:** GameTDB and similar datasets may be used for educational and observational purposes, credited (principle 8).
+4. **Spanish and English UI** and an **installable, offline app:** yes.
+
+Still on their defaults unless you say otherwise: keep the name "Romgi Catalog Explorer" with a clear "not affiliated" line (H2); no
+analytics (H4); stay on GitHub Pages; tiers 1 and 2 of sources yes, a local-only bring-your-own source later (G3), never more hosts of
+copyrighted ROMs on the public site.
