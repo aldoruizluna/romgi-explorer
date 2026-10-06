@@ -1,6 +1,7 @@
 /* ============================================================ schema: the tables, how they join, what is in every column, where the bytes go */
 
 const ER_ROW = 19, ER_HEAD = 34;
+const STORAGE_KINDS = [N_('table'), N_('index')];       // what the storage list says about each object
 const ER = {
   platforms: { x: 24, y: 28, w: 196, show: ['id', 'brand', 'name'] },
   entries: { x: 300, y: 28, w: 240, show: ['slug', 'rom_id', 'search_key', 'title', 'platform', 'boxart_url', 'ra_game_id', 'ra_num_achievements'] },
@@ -13,7 +14,7 @@ const ER = {
   entry_groups: { x: 506, y: 500, w: 196, show: ['id', 'kind', 'title', 'platform', 'member_count'] },
   torrents: { x: 730, y: 330, w: 200, show: ['infohash', 'source_id', 'name', 'magnet', 'torrent_blob', 'total_size', 'file_count'] },
   user_sources: { x: 24, y: 500, w: 196, show: ['id', 'name', 'kind', 'config_json'] },
-  entries_fts: { x: 300, y: 500, w: 176, show: ['search_key'], note: 'FTS4 index on entries' },
+  entries_fts: { x: 300, y: 500, w: 176, show: ['search_key'], note: N_('FTS4 index on entries') },
 };
 const erH = k => ER_HEAD + ER[k].show.length * ER_ROW + 12;
 const erRow = (k, col) => { const i = ER[k].show.indexOf(col); return ER[k].y + ER_HEAD + (i < 0 ? 0 : i) * ER_ROW + ER_ROW / 2 + 2; };
@@ -48,26 +49,26 @@ function erSVG(sel) {
       return `<text class="er-c${col.pk ? ' pk' : ''}" x="${b.x + 12}" y="${y}">${esc(c)}</text><text class="er-k" x="${b.x + b.w - 12}" y="${y}" text-anchor="end">${col.pk ? 'PK ' : ''}${fkFrom.has(c) ? 'FK ' : ''}<tspan class="er-ty">${esc((col.type || '').toLowerCase())}</tspan></text>`;
     }).join('');
     const more = t.columns.length - b.show.length;
-    return `<g class="er-box${sel === k ? ' sel' : ''}${t.rows === 0 ? ' empty' : ''}" data-act="stbl" data-t="${k}" tabindex="0" role="button" aria-label="${esc(k)} table">
+    return `<g class="er-box${sel === k ? ' sel' : ''}${t.rows === 0 ? ' empty' : ''}" data-act="stbl" data-t="${k}" tabindex="0" role="button" aria-label="${esc(__('{name} table', { name: k }))}">
       <rect class="bg" x="${b.x}" y="${b.y}" width="${b.w}" height="${h}" rx="8"/><path class="hd" d="M${b.x} ${b.y + 26}V${b.y + 8}a8 8 0 0 1 8-8h${b.w - 16}a8 8 0 0 1 8 8v18z"/>
       <text class="er-t" x="${b.x + 12}" y="${b.y + 18}">${esc(k)}</text><text class="er-n" x="${b.x + b.w - 12}" y="${b.y + 18}" text-anchor="end">${t.rows == null ? '' : compact(t.rows)}</text>${rows}
-      ${more > 0 ? `<text class="er-more" x="${b.x + 12}" y="${b.y + h - 6}">+ ${more} more columns</text>` : b.note ? `<text class="er-more" x="${b.x + 12}" y="${b.y + h - 6}">${esc(b.note)}</text>` : ''}</g>`;
+      ${more > 0 ? `<text class="er-more" x="${b.x + 12}" y="${b.y + h - 6}">${esc(__n(more, '+ {n} more column|+ {n} more columns'))}</text>` : b.note ? `<text class="er-more" x="${b.x + 12}" y="${b.y + h - 6}">${esc(__(b.note))}</text>` : ''}</g>`;
   }).join('');
-  return `<svg class="er" viewBox="0 0 ${W} ${H}" role="group" aria-label="Entity relationship diagram of the catalogue database">${edges}${boxes}</svg>`;
+  return `<svg class="er" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(__('Entity relationship diagram of the catalogue database'))}">${edges}${boxes}</svg>`;
 }
 
 function profileHTML(c, rows) {
-  const p = c.profile; if (!p) return '<span class="muted">not profiled</span>';
+  const p = c.profile; if (!p) return `<span class="muted">${__('not profiled')}</span>`;
   const filled = rows ? (rows - p.nulls - (p.empty || 0)) / rows : 0;
   const bits = [];
-  bits.push(`<span class="fill" data-tip="${fmtN(p.nulls)} null${p.empty ? `, ${fmtN(p.empty)} empty` : ''}"><i style="width:${(filled * 100).toFixed(1)}%"></i></span><span class="num fv">${(filled * 100).toFixed(filled >= 0.1 && filled < 1 ? 0 : 1).replace(/\.0$/, '')}%</span>`);
+  bits.push(`<span class="fill" data-tip="${esc(p.empty ? __('{nulls} null, {empty} empty', { nulls: p.nulls, empty: p.empty }) : __('{nulls} null', { nulls: p.nulls }))}"><i style="width:${(filled * 100).toFixed(1)}%"></i></span><span class="num fv">${fmtD(filled * 100, filled >= 0.1 && filled < 1 ? 0 : 1).replace(/[.,]0$/, '')}%</span>`);
   let detail = '';
   if (p.top) detail = `<div class="tops">${p.top.slice(0, 4).map(([v, n]) => `<span class="tv"><b>${esc(String(v).slice(0, 26))}</b><i class="num">${compact(n)}</i></span>`).join('')}</div>`;
   else if (p.hosts) detail = `<div class="tops">${p.hosts.slice(0, 4).map(([v, n]) => `<span class="tv"><b>${esc(v)}</b><i class="num">${compact(n)}</i></span>`).join('')}</div>`;
-  else if (p.hist) { const mx = Math.max(...p.hist.bins, 1); detail = `<div class="spark" data-tip="${esc(`log scale from ${fmtN(p.hist.lo)} to ${fmtN(p.hist.hi)}`)}">${p.hist.bins.map(n => `<i style="height:${Math.max(1, (n / mx) * 22).toFixed(1)}px"></i>`).join('')}</div>`; }
-  else if (p.blobs != null) detail = `<span class="muted">${fmtN(p.blobs)} files stored</span>`;
+  else if (p.hist) { const mx = Math.max(...p.hist.bins, 1); detail = `<div class="spark" data-tip="${esc(__('log scale from {lo} to {hi}', { lo: p.hist.lo, hi: p.hist.hi }))}">${p.hist.bins.map(n => `<i style="height:${Math.max(1, (n / mx) * 22).toFixed(1)}px"></i>`).join('')}</div>`; }
+  else if (p.blobs != null) detail = `<span class="muted">${esc(__n(p.blobs, '{n} file stored|{n} files stored'))}</span>`;
   else if (p.min != null && p.max != null) detail = `<span class="mono muted rng">${esc(String(p.min).slice(0, 18))} … ${esc(String(p.max).slice(0, 18))}</span>`;
-  return `<div class="pf"><div class="pf-a">${bits.join('')}</div><span class="num dv">${fmtN(p.distinct)} distinct${rows && p.distinct === rows ? ' · unique' : ''}</span>${detail}</div>`;
+  return `<div class="pf"><div class="pf-a">${bits.join('')}</div><span class="num dv">${esc(__('{n} distinct', { n: p.distinct }) + (rows && p.distinct === rows ? ' · ' + __('unique') : ''))}</span>${detail}</div>`;
 }
 
 App.views.schema = {
@@ -76,23 +77,23 @@ App.views.schema = {
     const storage = D.raw.storage, totalB = storage.reduce((s, x) => s + x.bytes, 0), max = storage[0]?.bytes || 1;
     const stItems = storage.slice(0, 12).map(x => ({ v: 0, label: x.name, value: x.bytes, color: x.kind === 'index' ? 'var(--ink-4)' : 'var(--accent)' }));
     const stCard = chartCard({
-      id: 'storage', cls: 's5', title: 'Where the bytes go', sub: `${fmtBytes(totalB)} in ${fmtN(D.meta.page_count)} pages. Tables in blue, indexes in grey.`,
-      body: hbarHTML(stItems, { max, static: true, fmt: v => fmtBytes(v, 0), tipFor: i => tipBox(i.label, [['Size', fmtBytes(i.value)], ['Share', pct(i.value, totalB)]]) }),
-      twin: twinHTML([{ label: 'Object' }, { label: 'Kind' }, { label: 'Size', right: true }, { label: 'Share', right: true }], storage.map(x => [x.name, x.kind, fmtBytes(x.bytes), pct(x.bytes, totalB)])),
+      id: 'storage', cls: 's5', title: __('Where the bytes go'), sub: __('{size} in {pages} pages. Tables in blue, indexes in grey.', { size: fmtBytes(totalB), pages: D.meta.page_count }),
+      body: hbarHTML(stItems, { max, static: true, fmt: v => fmtBytes(v, 0), tipFor: i => tipBox(i.label, [[__('Size'), fmtBytes(i.value)], [__('Share'), pct(i.value, totalB)]]) }),
+      twin: twinHTML([{ label: __('Object') }, { label: __('Kind') }, { label: __('Size'), right: true }, { label: __('Share'), right: true }], storage.map(x => [x.name, __(x.kind), fmtBytes(x.bytes), pct(x.bytes, totalB)])),
     });
-    const fkTxt = t.fks.map(f => `${f.from} to ${f.table}.${f.to}`);
+    const fkTxt = t.fks.map(f => __('{from} to {target}', { from: f.from, target: `${f.table}.${f.to}` }));
     const cols = t.columns.map(c => `<tr><td class="mono cn">${esc(c.name)}${c.pk ? ' <span class="pill info" style="height:18px;padding:0 6px">pk</span>' : ''}${t.fks.some(f => f.from === c.name) ? ' <span class="pill" style="height:18px;padding:0 6px">fk</span>' : ''}</td><td class="mono muted">${esc((c.type || '').toLowerCase())}${c.notnull ? ' not null' : ''}</td><td>${profileHTML(c, t.rows)}</td></tr>`).join('');
     root.innerHTML = `<div class="grid">
-      <section class="card s12 flush"><div class="card-h"><div><h3>How the tables join</h3><p>Click a table to inspect it. Counts are rows. Lines join a primary key (1) to the many rows that point at it (N).</p></div><div class="acts"><span class="pill info">${icon('db', 13)}${tabs.filter(x => x.kind !== 'shadow').length} tables</span></div></div>
+      <section class="card s12 flush"><div class="card-h"><div><h3>${__('How the tables join')}</h3><p>${__('Click a table to inspect it. Counts are rows. Lines join a primary key (1) to the many rows that point at it (N).')}</p></div><div class="acts"><span class="pill info">${icon('db', 13)}${esc(__n(tabs.filter(x => x.kind !== 'shadow').length, '{n} table|{n} tables'))}</span></div></div>
         <div class="er-wrap">${erSVG(t.name)}</div></section>
-      <section class="card s7" id="insp"><div class="card-h"><div><h3 class="mono" style="font-size:16px">${esc(t.name)}</h3><p>${t.kind === 'fts' ? 'Full-text index (FTS4). The app only uses it as a health probe.' : t.kind === 'shadow' ? 'Internal table that SQLite keeps for the full-text index.' : `${fmtN(t.rows ?? 0)} rows · ${t.columns.length} columns · ${t.bytes ? fmtBytes(t.bytes) : 'size unknown'}${t.idx_bytes ? ` plus ${fmtBytes(t.idx_bytes)} of indexes` : ''}`}</p></div>
-          <div class="acts">${App.sqlOK() ? `<button class="btn sm" data-act="sqltable" data-t="${esc(t.name)}">${icon('term', 13)}Query</button>` : ''}</div></div>
-        <div class="codebox" style="margin-bottom:14px"><pre>${hiSQL(t.ddl || '')}</pre><div class="copy"><button class="btn sm" data-act="copy" data-text="${esc(t.ddl || '')}">${icon('copy', 13)}Copy</button></div></div>
-        ${t.indexes.length ? `<div class="muted" style="font-size:12.5px;margin-bottom:6px"><b style="color:var(--ink)">Indexes</b> ${t.indexes.map(i => `<span class="mono">${esc(i.name)}</span> (${esc(i.cols.join(', '))})`).join(' · ')}</div>` : ''}
-        ${fkTxt.length ? `<div class="muted" style="font-size:12.5px"><b style="color:var(--ink)">References</b> ${fkTxt.map(x => `<span class="mono">${esc(x)}</span>`).join(' · ')}</div>` : ''}
+      <section class="card s7" id="insp"><div class="card-h"><div><h3 class="mono" style="font-size:16px">${esc(t.name)}</h3><p>${esc(t.kind === 'fts' ? __('Full-text index (FTS4). The app only uses it as a health probe.') : t.kind === 'shadow' ? __('Internal table that SQLite keeps for the full-text index.') : __('{rows} rows · {cols} columns · {size}', { rows: t.rows ?? 0, cols: t.columns.length, size: t.bytes ? fmtBytes(t.bytes) : __('size unknown') }) + (t.idx_bytes ? ' ' + __('plus {size} of indexes', { size: fmtBytes(t.idx_bytes) }) : ''))}</p></div>
+          <div class="acts">${App.sqlOK() ? `<button class="btn sm" data-act="sqltable" data-t="${esc(t.name)}">${icon('term', 13)}${__('Query')}</button>` : ''}</div></div>
+        <div class="codebox" style="margin-bottom:14px"><pre>${hiSQL(t.ddl || '')}</pre><div class="copy"><button class="btn sm" data-act="copy" data-text="${esc(t.ddl || '')}">${icon('copy', 13)}${__('Copy')}</button></div></div>
+        ${t.indexes.length ? `<div class="muted" style="font-size:12.5px;margin-bottom:6px"><b style="color:var(--ink)">${__('Indexes')}</b> ${t.indexes.map(i => `<span class="mono">${esc(i.name)}</span> (${esc(i.cols.join(', '))})`).join(' · ')}</div>` : ''}
+        ${fkTxt.length ? `<div class="muted" style="font-size:12.5px"><b style="color:var(--ink)">${__('References')}</b> ${fkTxt.map(x => `<span class="mono">${esc(x)}</span>`).join(' · ')}</div>` : ''}
       </section>${stCard}
-      <section class="card s12 flush"><div class="card-h"><div><h3>Columns of <span class="mono">${esc(t.name)}</span></h3><p>How full each column is, how many distinct values it holds, and what is in it.${D.caps.sql ? '' : ' File names, URLs and magnets are summarised without sample values.'}</p></div></div>
-        <div class="cols-wrap"><table class="cols-t"><thead><tr><th>Column</th><th>Type</th><th>Profile</th></tr></thead><tbody>${cols}</tbody></table></div></section></div>`;
+      <section class="card s12 flush"><div class="card-h"><div><h3>${__h('Columns of {name}', { name: raw(`<span class="mono">${esc(t.name)}</span>`) })}</h3><p>${esc(__('How full each column is, how many distinct values it holds, and what is in it.') + (D.caps.sql ? '' : ' ' + __('File names, URLs and magnets are summarised without sample values.')))}</p></div></div>
+        <div class="cols-wrap"><table class="cols-t"><thead><tr><th>${__('Column')}</th><th>${__('Type')}</th><th>${__('Profile')}</th></tr></thead><tbody>${cols}</tbody></table></div></section></div>`;
   },
 };
 Object.assign(App.handlers, {

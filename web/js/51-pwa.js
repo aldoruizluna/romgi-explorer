@@ -55,13 +55,13 @@ const Pwa = {
   },
   saved() {
     this.state = 'ready'; this.paintHelp();
-    if (!store.get('offline-told', false)) { store.set('offline-told', true); toast('Saved in this browser: the explorer now opens without a connection.'); }
+    if (!store.get('offline-told', false)) { store.set('offline-told', true); toast(__('Saved in this browser: the explorer now opens without a connection.')); }
   },
   /** The worker in charge changed. The first time that is just the first worker taking over; later it is a newer build starting. */
   tookOver() {
     if (!this.hadController) { this.hadController = true; return this.saved(); }
     if (this.reloading) return location.reload();
-    this.say('This page was updated in another tab.');             // its files are gone from the saved copy; a reload brings the new ones
+    this.say(__('This page was updated in another tab.'));             // its files are gone from the saved copy; a reload brings the new ones
   },
 
   /** Ask a waiting worker which catalogue it brings, and tell the visitor a newer build is ready. */
@@ -70,12 +70,12 @@ const Pwa = {
     try { info = await new Promise((resolve, reject) => { const ch = new MessageChannel(); ch.port1.onmessage = e => resolve(e.data); setTimeout(() => reject(new Error('no answer')), 3000); worker.postMessage({ type: 'info' }, [ch.port2]); }); }
     catch { /* the bar still says a new version is ready */ }
     const day = s => (s || '').slice(0, 10);
-    this.say(info && info.generated_at && day(info.generated_at) !== day(App.D.meta.generated_at) ? `A newer catalogue (${day(info.generated_at)}) is ready.` : 'A new version of the explorer is ready.');
+    this.say(info && info.generated_at && day(info.generated_at) !== day(App.D.meta.generated_at) ? __('A newer catalogue ({date}) is ready.', { date: day(info.generated_at) }) : __('A new version of the explorer is ready.'));
   },
   say(text) {
     const bar = $('#pwa-bar');
     if (!bar || this.dismissed) return;
-    bar.innerHTML = `<span>${esc(text)}</span><button class="btn sm primary" data-act="pwa-reload">Reload</button><button class="btn sm ghost icon" data-act="pwa-later" aria-label="Not now">${icon('x', 14)}</button>`;
+    bar.innerHTML = `<span>${esc(text)}</span><button class="btn sm primary" data-act="pwa-reload">${esc(__('Reload'))}</button><button class="btn sm ghost icon" data-act="pwa-later" aria-label="${esc(__('Not now'))}">${icon('x', 14)}</button>`;
     bar.classList.add('on');
   },
   /** Let the waiting worker take over, then reload when it has; the page it brings reads the same address and the same saved view. */
@@ -91,13 +91,13 @@ const Pwa = {
   /* ---------------------------------------------------------------- the connection and install */
   netChanged() {
     this.paintNet();
-    toast(navigator.onLine ? 'Back online.' : 'You are offline. The catalogue saved in this browser is still here; covers need a connection.');
+    toast(navigator.onLine ? __('Back online.') : __('You are offline. The catalogue saved in this browser is still here; covers need a connection.'));
   },
   paintNet() {
     const el = $('#net');
     if (!el) return;
     el.hidden = navigator.onLine !== false;
-    if (App.D) el.dataset.tip = `You are offline. This is the catalogue of ${(App.D.meta.generated_at || '').slice(0, 10)}, saved in this browser. Covers need a connection.`;
+    if (App.D) el.dataset.tip = __('You are offline. This is the catalogue of {date}, saved in this browser. Covers need a connection.', { date: (App.D.meta.generated_at || '').slice(0, 10) });
   },
   async install() {
     const ev = this.deferred;
@@ -111,18 +111,18 @@ const Pwa = {
   helpHTML() {
     if (!this.supported || this.state === 'unsupported') return '';
     const day = (App.D.meta.generated_at || '').slice(0, 10);
-    const status = this.state === 'ready' ? `This browser has saved the explorer and the catalogue of ${day}, so it opens without a connection. Covers need one.`
-      : this.state === 'saving' ? 'Saving the explorer in this browser…' : 'The explorer has not been saved in this browser yet.';
-    const act = this.standalone ? '' : this.deferred ? `<div style="margin-top:10px"><button class="btn" data-act="pwa-install">${icon('download', 14)}Install the app</button></div>`
-      : this.ios ? '<p class="muted" style="margin:8px 0 0">To install it on an iPhone or iPad, tap Share, then Add to Home Screen.</p>'
-      : '<p class="muted" style="margin:8px 0 0">Your browser\'s menu offers Install app or Add to Home Screen.</p>';
-    return `<h3 style="margin:18px 0 0;font-size:14px">Offline and install</h3><p class="muted" style="margin:6px 0 0">${esc(status)}</p>${act}`;
+    const status = this.state === 'ready' ? __('This browser has saved the explorer and the catalogue of {date}, so it opens without a connection. Covers need one.', { date: day })
+      : this.state === 'saving' ? __('Saving the explorer in this browser…') : __('The explorer has not been saved in this browser yet.');
+    const act = this.standalone ? '' : this.deferred ? `<div style="margin-top:10px"><button class="btn" data-act="pwa-install">${icon('download', 14)}${__('Install the app')}</button></div>`
+      : this.ios ? `<p class="muted" style="margin:8px 0 0">${__('To install it on an iPhone or iPad, tap Share, then Add to Home Screen.')}</p>`
+      : `<p class="muted" style="margin:8px 0 0">${__("Your browser's menu offers Install app or Add to Home Screen.")}</p>`;
+    return `<h3 style="margin:18px 0 0;font-size:14px">${__('Offline and install')}</h3><p class="muted" style="margin:6px 0 0">${esc(status)}</p>${act}`;
   },
   paintHelp() { if ($('#modal')?.classList.contains('on') && $('#modal [data-modal="help"]')) App.help(); },
 };
 // the browser offers installing once; keep the offer for the help dialog's button
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); Pwa.deferred = e; Pwa.paintHelp(); });
-addEventListener('appinstalled', () => { Pwa.deferred = null; toast('Installed.'); Pwa.paintHelp(); });
+addEventListener('appinstalled', () => { Pwa.deferred = null; toast(__('Installed.')); Pwa.paintHelp(); });
 Object.assign(App.handlers, {
   'pwa-reload'() { Pwa.reload(); },
   'pwa-later'() { Pwa.dismissed = true; $('#pwa-bar').classList.remove('on'); },

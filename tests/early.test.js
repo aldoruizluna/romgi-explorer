@@ -16,7 +16,7 @@ const fs = require('fs'), vm = require('vm'), zlib = require('zlib'), path = req
 const [, , binPath, detailPath, jsonPath] = process.argv;
 if (!jsonPath) { console.error('usage: node tests/early.test.js <catalogue.bin> <detail.bin> <dataset.json.gz>'); process.exit(2); }
 const jsDir = path.join(__dirname, '..', 'web', 'js');
-const code = ['00-util.js', '10-data.js', '20-engine.js', '48-collections.js'].map(f => fs.readFileSync(path.join(jsDir, f), 'utf8')).join('\n');
+const code = ['00-util.js', '01-i18n.js', '10-data.js', '20-engine.js', '48-collections.js'].map(f => fs.readFileSync(path.join(jsDir, f), 'utf8')).join('\n');
 const files = { 'catalogue.bin': fs.readFileSync(binPath), 'detail.bin': fs.readFileSync(detailPath) };
 let S = null;
 const App = { handlers: {}, D: null, detailState: null, detailProgress() {}, detailReady() { S.cache = {}; } };       // detailReady: what the shell does first

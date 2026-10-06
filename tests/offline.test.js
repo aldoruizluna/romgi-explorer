@@ -44,6 +44,7 @@ function checkFiles(dir, label) {
   assert.deepStrictEqual(w.FILES.required, ['./', v.data, v.detail], `${label}: the worker must save the page and both data files before it counts as installed`);
   for (const f of [...w.FILES.required.slice(1), ...w.FILES.optional]) assert.ok(fs.existsSync(path.join(dir, f)), `${label}: the worker lists ${f}, which is not in the site`);
   assert.ok(w.FILES.optional.includes(v.art), `${label}: the box-art file is not saved`);
+  assert.ok(w.FILES.optional.some(f => /^lang-es\.[0-9a-f]{8}\.js$/.test(f)), `${label}: the Spanish dictionary is not saved`);
   assert.ok(w.FILES.optional.some(f => f.startsWith('fonts/')), `${label}: the fonts are not saved`);
   for (const f of [...w.FILES.required, ...w.FILES.optional]) assert.ok(!/^db\.|og\.png|vendor\/|sql-worker/.test(f), `${label}: ${f} should not be saved ahead of use`);
   assert.strictEqual(w.CACHE, 'romgi-app-' + w.BUILD);

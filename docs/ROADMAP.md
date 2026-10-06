@@ -48,7 +48,7 @@ What is weak, from reading the code and the live site:
 - ~~**No grouping.**~~ *Fixed 2026-10-06 (C2).* Browse and the gallery group editions by default (172,396 titles, 119,944 of them games and the rest add-on content), a ×N chip says how many editions a title has, and the card lists the others.
 - **A thin card.** Catalogue fields only: no screenshot, genre, year, developer or editions.
 - **Search is substring and `-word`.** No ranking, no operators, and an empty result offers only "Clear all filters".
-- **Desktop-first extras.** The SQL console needs a 41 MB download, shortcuts are keyboard-only, English only. ~~No offline mode.~~ *Fixed 2026-10-06 (B2): the app installs and opens offline.*
+- **Desktop-first extras.** The SQL console needs a 41 MB download, shortcuts are keyboard-only. ~~English only.~~ *Fixed 2026-10-06 (C11): Spanish and English.* ~~No offline mode.~~ *Fixed 2026-10-06 (B2): the app installs and opens offline.*
 - **Long tasks at boot** (up to about 200 ms in a quiet run) that count against total blocking time.
 
 ## What the original romgi's users ask for
@@ -107,7 +107,7 @@ or sharing, so those items rest on patterns in comparable tools, not on demand h
 | C8 | **A Discover start page.** Search first, platform tiles with cover collages, the collections, the daily shelf, "new this week"; today's Overview becomes "Analyze" | Newcomers meet a dashboard of charts | M |
 | C9 | **Platform and collection pages** with prerendered stubs and preview cards (about 58) | Link previews on chat apps need server-rendered tags | M |
 | C10 | **My systems and handheld mode.** Pick the systems you own and scope every count; gamepad focus (D-pad, L1/R1 to switch platform) | Matches the original's audience | M |
-| C11 | **Spanish and English** with locale-aware numbers and dates | The UI is English only and formats numbers as en-US | M |
+| C11 | ✅ *Done 2026-10-06.* **Spanish and English.** A dictionary keyed by the English message (`web/lang/es.js`), `__()`/`__h()`/`__n()`/`N_()` in the page, a script before the page's own that settles the language (saved choice, else the browser's) and writes the loader's headline in it, a top-bar switch that reloads to the same slice, numbers in the browser's own locale (Mexico 241,137, Spain 241.137), the Spanish file fetched only by those who read it and saved offline with the app. The data-quality sentences moved from the builder into the page so they can be translated; `tests/i18n.test.js` fails the build for a missing, unfaithful or unused translation and `tests/lang.test.js` reads every view in Spanish for English left over | The UI was English only and formatted numbers as en-US | M |
 | C12 | **Accessibility pass.** `role=grid` with row counts for the virtual table, a switch for single-key shortcuts, 44 px targets on touch, chart and table toggles, an automated check in CI | Lighthouse covers the first view only | S–M |
 | C13 | **Export, print and share.** Titles-only CSV, JSON and Markdown; a print stylesheet; a share card | CSV is local-only today; the live site copies 3,000 rows as TSV | S–M |
 

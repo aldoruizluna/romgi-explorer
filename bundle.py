@@ -113,7 +113,8 @@ def main():
             pk = json.loads(Path(a.pick).read_text())
             if pk.get("held"):
                 L = pk["latest"]
-                latest = {"version": L["version"], "generated_at": L["date"], "entries": L["entries"], "links": L["links"], "reason": pk["reason"]}
+                latest = {"version": L["version"], "generated_at": L["date"], "entries": L["entries"], "links": L["links"], "reason": pk["reason"],
+                          "against": {"entries": pk["use"]["entries"], "links": pk["use"]["links"]}, "drop": pk.get("drop")}      # the numbers too, so the page can say it in either language
         sql_cfg, db_name = None, ""
         if a.live_db:
             from vendor_sqljs import fetch as fetch_sqljs
@@ -125,13 +126,18 @@ def main():
             (out / "sql-worker.js").write_bytes((HERE / "web" / "worker" / "sql-worker.js").read_bytes())
             fetch_sqljs(str(out / "vendor" / "sqljs"))
             sql_cfg = {"db": db_name, "gz": len(blob), "bytes": int.from_bytes(blob[-4:], "little"), "worker": "sql-worker.js", "sqljs": "vendor/sqljs/"}
+        for old in out.glob("lang-*.js"):
+            old.unlink()
+        es = (HERE / "web" / "lang" / "es.js").read_bytes()
+        lang_name = "lang-es." + hashlib.sha256(es).hexdigest()[:8] + ".js"        # Spanish is its own file: only the people who read it download it
+        (out / lang_name).write_bytes(es)
         icons.write(out / "icons")
         (out / "manifest.webmanifest").write_text(json.dumps(pwa.manifest("Every release and every link in the romgi ROM catalogue, sliceable and pivotable."), indent=1) + "\n", encoding="utf-8")
         page = compose("snapshot", "", standalone=True, pages=True, data_url=name, hero=hero, art_url=art_name, site_url=a.site_url, sql=sql_cfg, data_bytes=len(gz),
-                       detail_url=detail_name, detail_bytes=len(detail_gz), built_at=built_at or "", latest=latest)
+                       detail_url=detail_name, detail_bytes=len(detail_gz), built_at=built_at or "", latest=latest, lang_urls={"es": lang_name})
         (out / "index.html").write_text(page, encoding="utf-8")
         # the service worker keeps the page and the catalogue in the visitor's browser; its id changes with any of them
-        worker, saved = pwa.service_worker(out, name, detail_name, art_name, {"data": name, "detail": detail_name, "version": meta["version"],
+        worker, saved = pwa.service_worker(out, name, detail_name, art_name, lang_name, {"data": name, "detail": detail_name, "version": meta["version"],
                                                                          "generated_at": meta.get("generated_at"), "built_at": built_at}, stamp=built_at or "")
         (out / "sw.js").write_text(worker, encoding="utf-8")
         # what a visitor's browser compares with romgi's live version.json to say whether this build is current

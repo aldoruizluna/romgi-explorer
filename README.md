@@ -53,6 +53,11 @@ Alt-click excludes a value. The "SQL" button above the tabs prints the query tha
 
 Shortcuts: `/` search, `R` roll a random entry, `G` then `O D B S M Q L` to jump between views, `T` theme, `?` help.
 
+**English and Spanish.** The page opens in the first of the browser's languages it has, and the switch in the top bar (EN / ES) overrides that
+and is remembered; changing it reloads the page, which comes back to the same slice and view because both are in the address. Numbers
+follow the browser's own locale (Mexico writes 241,137, Spain 241.137). The headline numbers painted while the catalogue downloads are
+already in the chosen language, and the Spanish dictionary is a file of its own that only people reading Spanish download.
+
 | | |
 |---|---|
 | ![Gallery of covers from a collection](docs/img/gallery.jpg) | ![An entry's catalogue card](docs/img/drawer.jpg) |
@@ -115,8 +120,9 @@ bundle.py           builds the hosted site (--pages) or the single-file versions
 compose.py          assembles the page from web/
 pwa.py, icons.py    the web app manifest, the service worker's build id and file lists, and the app icons (drawn without an image library)
 refresh_history.py  adds the weekly snapshots published since data/history.json was written
-web/                index.html, css/, js/ (util, data, engine, charts, views, collections, SQL in the browser, links, the offline app),
-                    sw.js (the service worker template), worker/ (the SQL engine), fonts/ (self-hosted, OFL), og/ (the link-preview card)
+web/                index.html, css/, js/ (util, language, data, engine, charts, views, collections, SQL in the browser, links, the offline app),
+                    lang/ (the Spanish dictionary and the script that settles the language), sw.js (the service worker template),
+                    worker/ (the SQL engine), fonts/ (self-hosted, OFL), og/ (the link-preview card)
 data/history.json   weekly snapshot sizes, extracted from the romgi git history
 docs/img/           the screenshots above
 tests/              dataset-vs-SQL parity, a random-slice property test of the engine, the hosted files' transport, the engine
@@ -144,6 +150,8 @@ node tests/sources.test.js dist/fixture/romdb.db dist/fixture/dataset.json.gz
 node tests/smoke.test.js site
 node tests/url.test.js dist/dataset.snapshot.json.gz
 node tests/offline.test.js site dist/dataset.snapshot.json.gz dist/art.snapshot.json.gz     # builds two newer sites from the dataset; a few minutes
+node tests/i18n.test.js dist/dataset.snapshot.json.gz                                       # the Spanish dictionary is complete and faithful
+node tests/lang.test.js site dist/romgi-explorer.standalone.html                            # the page in Spanish, in a real browser
 ```
 
 The first checks every flag, size class, region, source, pack and format count against SQL, and that the table is stored in the order
@@ -170,6 +178,22 @@ Chrome (with the server answering like GitHub Pages, ten-minute cache lifetime a
 with the network gone without one request reaching the server, that a newer build installs quietly and waits while the open page keeps
 its own files, that a build missing a file is not installed and leaves nothing behind, that the reload brings the new build and drops the
 old copy, that a second tab is told, and that the new build opens offline too.
+`i18n.test.js` is the dictionary's spec (see Languages above). `lang.test.js` opens the built site in a browser that asks for Spanish and
+checks the language, the headline painted before the script runs, the tabs, the number format of Mexico and of Spain, that no English words
+remain in any view (the overview, help, dice, sources, schema, quality, SQL, browse, a card, the gallery, a filtered overview), that the
+switch changes the language and returns to the same slice, that a browser set to French gets English, and that the single-file build
+carries the dictionary.
+
+## Languages
+
+Every message is written in English where it is used and passed through `__()`, `__h()` (markup), `__n()` (singular and plural) or `N_()`
+(marks a message in a table to be translated where it is drawn); a language is a dictionary from the English message to its translation in
+[`web/lang/es.js`](web/lang/es.js). A message that has no translation shows in English, so a gap is never a failure, but `tests/i18n.test.js`
+reads every message out of the source and the dataset and fails the build for a missing one, for a translation that loses a `{name}`, a
+plural form or a tag, for one that still reads as English, and for an entry nothing uses. Text the dataset builder writes in English and the
+page translates (flag, size-class and link-type names, the SQL examples) is read from the dataset; the data-quality checks' sentences live in
+`web/js/46-quality.js` and the builder supplies only their numbers. To add a language: add its code to `LOCALES` in `web/js/01-i18n.js` and
+`web/lang/boot.js`, write `web/lang/<code>.js`, and extend `tests/i18n.test.js` to read it.
 
 ## Roadmap
 

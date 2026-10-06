@@ -4,21 +4,21 @@
 /** Editorial entry points. A preset names platforms, regions and sources by id, so it keeps working when the catalogue grows;
  *  one that no longer matches anything is left out rather than shown empty. `gallery` opens Browse as a gallery sorted that way. */
 const COLLECTIONS = [
-  { id: 'mirrored', icon: 'layers', title: 'Mirrored everywhere', blurb: 'Entries offered by three or more sources, so one outage does not take them away.',
+  { id: 'mirrored', icon: 'layers', title: N_('Mirrored everywhere'), blurb: N_('Entries offered by three or more sources, so one outage does not take them away.'),
     preset: { grain: 'entries', avail: 'min3' } },
-  { id: 'achievers', icon: 'trophy', title: 'Achievement hunters', blurb: 'Releases with 50 or more RetroAchievements and box art.',
+  { id: 'achievers', icon: 'trophy', title: N_('Achievement hunters'), blurb: N_('Releases with 50 or more RetroAchievements and box art.'),
     preset: { grain: 'entries', ra: [4, 5, 6], art: [1, 2] }, gallery: 'ra' },
-  { id: 'cartridge', icon: 'grid', title: 'Cartridge classics', blurb: 'NES, SNES, Mega Drive, Game Boy and N64 games that have achievements and box art.',
+  { id: 'cartridge', icon: 'grid', title: N_('Cartridge classics'), blurb: N_('NES, SNES, Mega Drive, Game Boy and N64 games that have achievements and box art.'),
     preset: { grain: 'entries', plat: ['nes', 'snes', 'smd', 'gb', 'gbc', 'gba', 'n64'], ra: [1, 2, 3, 4, 5, 6], art: [1, 2] }, gallery: 'ra' },
-  { id: 'discs', icon: 'disc', title: 'The disc era', blurb: 'PlayStation, Saturn and Dreamcast releases that have box art.',
+  { id: 'discs', icon: 'disc', title: N_('The disc era'), blurb: N_('PlayStation, Saturn and Dreamcast releases that have box art.'),
     preset: { grain: 'entries', plat: ['ps1', 'sat', 'dc'], art: [1, 2] }, gallery: 'ra' },
-  { id: 'unreleased', icon: 'tag', title: 'Prototypes and betas', blurb: 'Unfinished builds: prototypes, betas, demos and samples.',
+  { id: 'unreleased', icon: 'tag', title: N_('Prototypes and betas'), blurb: N_('Unfinished builds: prototypes, betas, demos and samples.'),
     preset: { grain: 'entries', flag: ['proto', 'beta', 'demo', 'sample'] } },
-  { id: 'japan', icon: 'code', title: 'Japan only', blurb: 'Releases that only exist as Japanese editions.',
+  { id: 'japan', icon: 'code', title: N_('Japan only'), blurb: N_('Releases that only exist as Japanese editions.'),
     preset: { grain: 'entries', reg: ['jp'], exclude: { reg: ['us', 'eu'] } } },
-  { id: 'big', icon: 'download', title: 'Beyond a DVD', blurb: 'Files of 4.7 GiB and up that are still believable sizes.',
+  { id: 'big', icon: 'download', title: N_('Beyond a DVD'), blurb: N_('Files of 4.7 GiB and up that are still believable sizes.'),
     preset: { grain: 'links', sz: [5] } },
-  { id: 'single', icon: 'link', title: 'One copy only', blurb: 'Entries with a single link in the catalogue.',
+  { id: 'single', icon: 'link', title: N_('One copy only'), blurb: N_('Entries with a single link in the catalogue.'),
     preset: { grain: 'entries', nl: [0] } },
 ];
 
@@ -57,12 +57,12 @@ function* collectionSteps() {
 function collectionsHTML() {
   const cs = App._colls || [];
   if (!cs.length) return '';
-  return `<section class="s12 shelf" aria-labelledby="start-h"><div class="shelf-h"><div><h3 id="start-h">Start here</h3><p>Hand-picked slices. Each one sets the filters for you.</p></div></div>
+  return `<section class="s12 shelf" aria-labelledby="start-h"><div class="shelf-h"><div><h3 id="start-h">${__('Start here')}</h3><p>${__('Hand-picked slices. Each one sets the filters for you.')}</p></div></div>
     <div class="colls">${cs.map(c => {
     const links = c.preset.grain === 'links';
     return `<button class="coll" data-act="collection" data-id="${esc(c.id)}"><span class="ic-wrap">${icon(c.icon, 18)}</span>
-        <span class="ct"><b>${esc(c.title)}</b><span>${esc(c.blurb)}</span></span>
-        <span class="n num">${fmtN(links ? c.count.links : c.count.entries)}<small>${links ? 'links' : 'entries'}</small></span></button>`;
+        <span class="ct"><b>${esc(__(c.title))}</b><span>${esc(__(c.blurb))}</span></span>
+        <span class="n num">${fmtN(links ? c.count.links : c.count.entries)}<small>${grainName(links ? 'links' : 'entries')}</small></span></button>`;
   }).join('')}</div></section>`;
 }
 
@@ -103,7 +103,7 @@ function picksHTML() {
   if (!D.detailReady || !(D.caps.art || window.ROMGI.art)) return '';       // the cards need titles; covers need somewhere to come from
   const ids = dailyPicks();
   if (!ids.length) return '';
-  return `<section class="s12 shelf" aria-labelledby="picks-h"><div class="shelf-h"><div><h3 id="picks-h">Today's picks</h3><p>${ids.length} covers, one per platform. New every day.</p></div></div>
+  return `<section class="s12 shelf" aria-labelledby="picks-h"><div class="shelf-h"><div><h3 id="picks-h">${__("Today's picks")}</h3><p>${esc(__n(ids.length, '{n} cover, one per platform. New every day.|{n} covers, one per platform. New every day.'))}</p></div></div>
     <div class="gal picks">${ids.map(i => galCardHTML(i)).join('')}</div></section>`;
 }
 

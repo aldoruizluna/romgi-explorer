@@ -2,19 +2,19 @@
 
 async function loadDataset(onPhase) {
   if (window.ROMGI.mode === 'local') {
-    onPhase('Reading the catalogue from your database');
+    onPhase(__('Reading the catalogue from your database'));
     const r = await fetch('/api/dataset');
-    if (!r.ok) throw new Error('The local server answered ' + r.status);
+    if (!r.ok) throw new Error(__('The local server answered {status}', { status: r.status }));
     return r.json();
   }
-  if (typeof DecompressionStream === 'undefined') throw new Error('This browser cannot unpack the catalogue. Use a current Chrome, Edge, Firefox or Safari.');
+  if (typeof DecompressionStream === 'undefined') throw new Error(__('This browser cannot unpack the catalogue. Use a current Chrome, Edge, Firefox or Safari.'));
   if (window.ROMGI.data) return fetchDataset(window.ROMGI.data, onPhase);
-  onPhase('Unpacking catalogue');
+  onPhase(__('Unpacking catalogue'));
   await sleep(40);
   const b64 = document.getElementById('romgi-data').textContent.trim();
   const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
   const text = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
-  onPhase('Reading records');
+  onPhase(__('Reading records'));
   await sleep(20);
   return JSON.parse(text);
 }
@@ -23,7 +23,7 @@ async function loadDataset(onPhase) {
  *  [section, key, values, offset] for a long column). They unpack as they arrive and are parsed line by line in short tasks. */
 async function readNdjson(url, total, onProgress) {
   const r = await fetch(url);
-  if (!r.ok) throw new Error(r.status === 404 ? 'That file is gone: the site was probably just updated. Reload the page.' : `${url} answered ${r.status}`);
+  if (!r.ok) throw new Error(r.status === 404 ? __('That file is gone: the site was probably just updated. Reload the page.') : __('{url} answered {status}', { url, status: r.status }));
   total = total || +r.headers.get('content-length') || 0;     // the file's own size; a CDN may re-compress in transit
   let got = 0;
   onProgress(0, total);
@@ -33,7 +33,7 @@ async function readNdjson(url, total, onProgress) {
     const sec = raw[k] || (raw[k] = {});
     if (off === undefined) { sec[kk] = v; return; }
     const col = sec[kk] || (sec[kk] = []);
-    if (col.length !== off) throw new Error('The catalogue file is damaged (column ' + k + '.' + kk + ' is out of order).');
+    if (col.length !== off) throw new Error(__('The catalogue file is damaged (column {column} is out of order).', { column: k + '.' + kk }));
     for (let i = 0; i < v.length; i++) col.push(v[i]);
   };
   const reader = r.body.pipeThrough(meter).pipeThrough(new DecompressionStream('gzip')).pipeThrough(new TextDecoderStream()).getReader();
@@ -110,9 +110,19 @@ async function checkFreshness() {
 const slugifyAscii = t => t.toLowerCase().replace(/&/g, ' and ').replace(/\+/g, ' plus ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 const ASCII_ONLY = /^[\x00-\x7f]*$/;
 
+/** Text the builder writes in English and the page only shows, never matches on: translated once here, so every view that draws it is in the
+ *  visitor's language. (Link types are also matched and linked by name, so their translations live apart, in typeNames.) */
+function localizeDims(dims) {
+  for (const f of dims.flags) f.label = __(f.label);
+  for (const s of dims.sizes) { s.en = s.label; s.label = __(s.label); s.hint = __(s.hint); }       // en: what exports keep writing
+  for (const r of dims.regions) r.name = __(r.name);
+  dims.typeNames = dims.types.map(x => __(x));
+}
+
 /** Builds the arrays the engine scans. A generator so the page can stay responsive: it yields between slices of about 10 ms. */
 function* prepareSteps(raw) {
   const dims = raw.dims, re = raw.entries, rl = raw.links, nE = re.n, nL = rl.n;
+  localizeDims(dims);
   // new TypedArray(array) is several times faster than TypedArray.from(array); the columns are copied a few at a time
   const E = { n: nE, title: null, rom: null, tl: null, sumSize: null, art: re.art || null };       // the detail is attached by attachDetailSteps
   E.platform = new Uint8Array(re.platform); E.reg = new Uint8Array(re.reg); E.ra = new Uint32Array(re.ra); yield;
@@ -126,7 +136,7 @@ function* prepareSteps(raw) {
   // entry -> link offsets, link -> entry
   E.start = new Uint32Array(nE + 1);
   for (let i = 0; i < nE; i++) E.start[i + 1] = E.start[i] + E.nl[i];
-  if (E.start[nE] !== nL) throw new Error('Link offsets do not add up: the dataset is damaged.');
+  if (E.start[nE] !== nL) throw new Error(__('Link offsets do not add up: the dataset is damaged.'));
   L.eo = new Uint32Array(nL);
   for (let i = 0; i < nE; i++) { for (let k = E.start[i]; k < E.start[i + 1]; k++) L.eo[k] = i; if ((i & 0x7FFF) === 0x7FFF) yield; }
   yield;
@@ -176,12 +186,12 @@ function* prepareSteps(raw) {
     if ((i & 0x3FFF) === 0x3FFF) yield;
   }
 
-  if (nextTitle !== re.ntitles) throw new Error('The title groups do not add up: the dataset is damaged.');
+  if (nextTitle !== re.ntitles) throw new Error(__('The title groups do not add up: the dataset is damaged.'));
   // release families: each entry says how far back the previous member of its family is (0 = the first); then the members are grouped
   E.fam = new Uint32Array(nE);
   let nextFam = 0;
   for (let i = 0; i < nE; i++) { const back = re.fam[i]; E.fam[i] = back === 0 ? nextFam++ : E.fam[i - back]; }
-  if (nextFam !== re.nfam) throw new Error('The release families do not add up: the dataset is damaged.');
+  if (nextFam !== re.nfam) throw new Error(__('The release families do not add up: the dataset is damaged.'));
   E.famStart = new Uint32Array(nextFam + 1);
   for (let i = 0; i < nE; i++) E.famStart[E.fam[i] + 1]++;
   for (let f = 0; f < nextFam; f++) E.famStart[f + 1] += E.famStart[f];
@@ -202,7 +212,7 @@ function* prepareSteps(raw) {
     return (E.artk[i] === 1 ? 'https://art.gametdb.com/' : 'https://thumbnails.libretro.com/') + E.art[i];
   };
   D.fixTitle = i => D.fixes.get(i) || null;
-  D.titleShown = i => { if (!E.title) return ''; const t = (D.fixes.get(i) || E.title[i]).replace(/^ +| +$/g, ''); return t || '(empty title)'; };
+  D.titleShown = i => { if (!E.title) return ''; const t = (D.fixes.get(i) || E.title[i]).replace(/^ +| +$/g, ''); return t || __('(empty title)'); };
   D.srcVar = s => `var(--src-${dims.sources[s].slot})`;                       // a source keeps its colour whatever its position
   const ABBR = { minerva: 'MiNERVA', internet_archive: 'IA', nopaystation: 'NoPS', mariocube: 'MarioCube' };
   D.srcAbbr = s => ABBR[dims.sources[s].id] || dims.sources[s].short;
@@ -226,7 +236,7 @@ function* prepareSteps(raw) {
 /** Titles, serials, slugs, torrent file numbers and exact sizes; then each entry's total size and the lower-cased titles the search scans. */
 function* attachDetailSteps(D, part) {
   const E = D.E, L = D.L, pe = part.entries, pl = part.links;
-  if (pe.title.length !== E.n || pl.size.length !== L.n) throw new Error('The titles and sizes do not belong to this catalogue. Reload the page.');
+  if (pe.title.length !== E.n || pl.size.length !== L.n) throw new Error(__('The titles and sizes do not belong to this catalogue. Reload the page.'));
   E.title = pe.title; E.rom = pe.rom; yield;
   L.tidx = new Int32Array(pl.tidx); yield;
   L.size = new Float64Array(pl.size); yield;                 // two steps: each copy is a few dozen milliseconds
@@ -255,5 +265,4 @@ function prepare(raw) {
   for (;;) { const r = g.next(); if (r.done) return r.value; }
 }
 
-/** Title-case helpers for presenting dimension values. */
 const sizeLabel = (D, b) => D.dims.sizes[b].label;

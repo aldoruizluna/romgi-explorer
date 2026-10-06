@@ -15,7 +15,7 @@ const fs = require('fs'), vm = require('vm'), zlib = require('zlib'), path = req
 const [, , binPath, detailPath, jsonPath] = process.argv;
 if (!jsonPath) { console.error('usage: node tests/transport.test.js <catalogue.bin> <detail.bin> <dataset.json.gz>'); process.exit(2); }
 const jsDir = path.join(__dirname, '..', 'web', 'js');
-const code = ['00-util.js', '10-data.js'].map(f => fs.readFileSync(path.join(jsDir, f), 'utf8')).join('\n');
+const code = ['00-util.js', '01-i18n.js', '10-data.js'].map(f => fs.readFileSync(path.join(jsDir, f), 'utf8')).join('\n');
 const files = { 'catalogue.bin': fs.readFileSync(binPath), 'detail.bin': fs.readFileSync(detailPath) };
 const asked = [], coreProgress = [];
 const App = { D: null, detailState: null, detailTicks: 0, detailDone: 0, detailProgress() { this.detailTicks++; }, detailReady() { this.detailDone++; } };

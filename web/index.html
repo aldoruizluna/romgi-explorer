@@ -11,39 +11,41 @@
 <!--@HERO@-->      <div class="px"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
       <div class="phase">Starting</div>
     </div>
+<!--@LANGDICT@--><script>/*@LANGBOOT@*/</script>
   </div>
 
   <header class="topbar">
-    <button class="btn icon ghost rail-toggle" data-act="rail" aria-label="Show filters" data-tip="Filters"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7.5V19l-4-2v-4.5L4 5z"/></svg></button>
+    <button class="btn icon ghost rail-toggle" data-act="rail" aria-label="Show filters" data-tip="Filters" data-t="aria-label data-tip"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7.5V19l-4-2v-4.5L4 5z"/></svg></button>
     <div class="brand">
       <svg class="logo" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M3 1h10v1h1v1h1v10h-1v1h-1v1H3v-1H2v-1H1V3h1V2h1V1zm1 2v1H3v8h1v1h8v-1h1V4h-1V3H4z"/><rect x="4" y="4" width="2" height="2" fill="currentColor"/><rect x="10" y="4" width="2" height="2" fill="currentColor"/><rect x="7" y="7" width="2" height="2" fill="currentColor"/><rect x="4" y="10" width="2" height="2" fill="currentColor"/><rect x="10" y="10" width="2" height="2" fill="currentColor"/></svg>
-      <span class="word">romgi</span><span class="sub">catalog explorer</span>
+      <span class="word">romgi</span><span class="sub" data-t="text">catalog explorer</span>
     </div>
     <div class="search">
       <svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>
-      <input id="q" type="search" placeholder="Search titles. Try: mario -beta" autocomplete="off" spellcheck="false" aria-label="Search titles">
+      <input id="q" type="search" placeholder="Search titles. Try: mario -beta" autocomplete="off" spellcheck="false" aria-label="Search titles" data-t="placeholder aria-label">
       <span class="kbd">/</span>
     </div>
     <div class="top-actions">
-      <button class="btn roll" data-act="roll" aria-label="Roll the dice: open a random entry" data-tip="Open a random entry from the current slice (R)"><span id="roll-ic"></span><span class="lbl-hide">Roll</span></button>
-      <span class="net" id="net" role="status" hidden><i aria-hidden="true"></i><span class="t">Offline</span></span>
+      <button class="btn roll" data-act="roll" aria-label="Roll the dice: open a random entry" data-tip="Open a random entry from the current slice (R)" data-t="aria-label data-tip"><span id="roll-ic"></span><span class="lbl-hide" data-t="text">Roll</span></button>
+      <span class="net" id="net" role="status" hidden><i aria-hidden="true"></i><span class="t" data-t="text">Offline</span></span>
       <span class="ver" id="ver"></span>
-      <button class="btn icon ghost" data-act="theme" aria-label="Switch theme" data-tip="Switch theme (T)"><span id="theme-ic"></span></button>
-      <button class="btn icon ghost" data-act="help" aria-label="Help and shortcuts" data-tip="Help and shortcuts (?)"><span id="help-ic"></span></button>
+      <button class="btn icon ghost" data-act="theme" aria-label="Switch theme" data-tip="Switch theme (T)" data-t="aria-label data-tip"><span id="theme-ic"></span></button>
+      <button class="btn icon ghost" data-act="help" aria-label="Help and shortcuts" data-tip="Help and shortcuts (?)" data-t="aria-label data-tip"><span id="help-ic"></span></button>
+      <button class="btn icon ghost lang" data-act="lang" id="lang-btn"><span class="l" aria-hidden="true"></span></button>
     </div>
   </header>
 
-  <aside class="rail" id="rail" aria-label="Filters"></aside>
+  <aside class="rail" id="rail" aria-label="Filters" data-t="aria-label"></aside>
   <main class="stage" id="stage">
     <div class="stage-head">
       <div class="scope" id="scope"></div>
-      <nav class="tabs" id="tabs" role="tablist" aria-label="Views"></nav>
+      <nav class="tabs" id="tabs" role="tablist" aria-label="Views" data-t="aria-label"></nav>
     </div>
     <section class="view" id="view" role="tabpanel"></section>
   </main>
 
   <div class="scrim" id="scrim" data-act="scrim"></div>
-  <aside class="drawer" id="drawer" aria-label="Entry details" aria-hidden="true"></aside>
+  <aside class="drawer" id="drawer" aria-label="Entry details" aria-hidden="true" data-t="aria-label"></aside>
   <div class="tip" id="tip" role="tooltip" aria-hidden="true"></div>
   <div class="pwa-bar" id="pwa-bar" role="status" aria-live="polite"></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

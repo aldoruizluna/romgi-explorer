@@ -152,6 +152,7 @@ a:hover { text-decoration: underline; }
 .ver .fd:not([data-s]) { display: none; }
 .ver .fd[data-s="current"] { background: var(--good); }
 .ver .fd[data-s="behind"], .ver .fd[data-s="held"] { background: var(--warn); }
+.lang .l { font: 600 11px/1 var(--font-mono); letter-spacing: .04em; }
 .net { display: inline-flex; align-items: center; gap: 6px; font: 500 11px/1 var(--font-mono); color: var(--ink-2); padding: 6px 8px; border-radius: var(--r-s); background: var(--panel); border: 1px solid var(--warn); white-space: nowrap; }
 .net[hidden] { display: none; }
 .net i { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }

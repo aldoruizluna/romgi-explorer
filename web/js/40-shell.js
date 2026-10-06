@@ -1,13 +1,15 @@
 /* ============================================================ shell: facet rail, scope bar, tabs, routing, shortcuts */
 
-const GROUPS = [{ id: 'catalog', label: 'Catalogue' }, { id: 'coverage', label: 'Coverage' }, { id: 'files', label: 'Files and links' }];
+const GROUPS = [{ id: 'catalog', label: N_('Catalogue') }, { id: 'coverage', label: N_('Coverage') }, { id: 'files', label: N_('Files and links') }];
+const grainName = g => (g === 'entries' ? __('entries') : __('links'));
+const LANG_NAMES = { en: 'English', es: 'Español' };       // each language's own name: the switch is read by people who may not read the page's language
 const TABS = [
-  { id: 'overview', label: 'Overview', icon: 'overview', key: 'o' },
-  { id: 'dice', label: 'Dice', icon: 'dice', key: 'd' },
-  { id: 'browse', label: 'Browse', icon: 'table', key: 'b' },
-  { id: 'sources', label: 'Sources', icon: 'layers', key: 's' },
-  { id: 'schema', label: 'Schema', icon: 'db', key: 'm' },
-  { id: 'quality', label: 'Quality', icon: 'shield', key: 'q' },
+  { id: 'overview', label: N_('Overview'), icon: 'overview', key: 'o' },
+  { id: 'dice', label: N_('Dice'), icon: 'dice', key: 'd' },
+  { id: 'browse', label: N_('Browse'), icon: 'table', key: 'b' },
+  { id: 'sources', label: N_('Sources'), icon: 'layers', key: 's' },
+  { id: 'schema', label: N_('Schema'), icon: 'db', key: 'm' },
+  { id: 'quality', label: N_('Quality'), icon: 'shield', key: 'q' },
   { id: 'sql', label: 'SQL', icon: 'term', key: 'l' },
 ];
 const DEFAULT_UI = {
@@ -36,16 +38,18 @@ const App = {
     const { D, S } = this;
     $('#roll-ic').innerHTML = icon('dice', 16);
     $('#help-ic').innerHTML = icon('help', 16);
+    const lb = $('#lang-btn');                         // the switch names the other language, in that language
+    lb.lang = Lang.other; $('.l', lb).textContent = Lang.other.toUpperCase(); lb.setAttribute('aria-label', LANG_NAMES[Lang.other]); lb.dataset.tip = LANG_NAMES[Lang.other];
     this.paintTheme();
     const q = $('#q');
     q.dataset.ph = q.placeholder;
-    if (!D.detailReady) { q.disabled = true; q.placeholder = 'Loading titles…'; }
-    $('#ver').innerHTML = `<i class="fd" id="fd" aria-hidden="true"></i>${esc(`${D.meta.version} · schema v${D.meta.schema_version ?? '?'}`)}`;
+    if (!D.detailReady) { q.disabled = true; q.placeholder = __('Loading titles…'); }
+    $('#ver').innerHTML = `<i class="fd" id="fd" aria-hidden="true"></i>${esc(__('{version} · schema v{schema}', { version: D.meta.version, schema: D.meta.schema_version ?? '?' }))}`;
     S.state.grain = store.get('grain', 'entries') === 'links' ? 'links' : 'entries';
     if (Url.boot) {                                 // a link asked for a slice: it is in place before anything is counted or drawn
       const bad = Url.apply(Url.boot); Url.boot = null;
       q.value = (Url.pending && Url.pending.q) || '';
-      if (bad) setTimeout(() => toast(`${bad === 1 ? 'One part' : bad + ' parts'} of that link ${bad === 1 ? 'is' : 'are'} not in this catalogue.`), 600);
+      if (bad) setTimeout(() => toast(__n(bad, 'One part of that link is not in this catalogue.|{n} parts of that link are not in this catalogue.')), 600);
     }
     S.changed();
     S.onChange = () => this.schedule();            // after the first changed(): that one is drawn below, not scheduled a second time
@@ -69,9 +73,9 @@ const App = {
   /** Progress of the title download: the search placeholder and, in Browse, the bar. */
   detailProgress() {
     const s = this.detailState || {}, p = s.total ? Math.min(1, s.got / s.total) : 0, q = $('#q');
-    if (q && q.disabled) q.placeholder = s.error ? 'Titles could not be loaded' : `Loading titles… ${Math.round(p * 100)}%`;
+    if (q && q.disabled) q.placeholder = s.error ? __('Titles could not be loaded') : __('Loading titles… {pct}%', { pct: Math.round(p * 100) });
     const box = $('#detail-load');
-    if (box) { $('.num', box).textContent = s.total ? `${(s.got / 1e6).toFixed(1)} of ${(s.total / 1e6).toFixed(1)} MB` : ''; $('.mt i', box).style.width = (p * 100).toFixed(1) + '%'; }
+    if (box) { $('.num', box).textContent = s.total ? __('{got} of {total} MB', { got: fmtD(s.got / 1e6), total: fmtD(s.total / 1e6) }) : ''; $('.mt i', box).style.width = (p * 100).toFixed(1) + '%'; }
     if (s.error && !box && this.ui.view === 'browse') this.renderView();
   },
   /** The cover paths have arrived (or failed): redraw what shows covers. */
@@ -83,10 +87,15 @@ const App = {
   },
   aboutText() {
     const m = this.D.meta, day = s => (s || '').slice(0, 10), f = this.fresh, hosted = !!window.ROMGI.data, built = window.ROMGI.builtAt || m.built_at;
-    const status = !f ? '' : f.state === 'current' ? ' It matches the latest catalogue romgi has published.'
-      : f.state === 'held' ? ` romgi's newest catalogue (${esc(day(f.latest.generated_at))}) looks incomplete, so this site still shows this one and will switch when romgi publishes a complete one.`
-      : ` romgi has since published the catalogue of ${esc(day(f.latest.generated_at))}.`;
-    return `Catalogue of ${esc(day(m.generated_at))} (version ${esc(m.version)}) from <a href="${esc(m.source_repo)}" target="_blank" rel="noopener">romgi</a>, built ${esc(day(built))}.${status}${hosted ? ' This site checks romgi every three hours and rebuilds when there is something new.' : ''} <a href="https://github.com/aldoruizluna/romgi-explorer" target="_blank" rel="noopener">Source code</a> (MIT).`;
+    const status = !f ? '' : f.state === 'current' ? __('It matches the latest catalogue romgi has published.')
+      : f.state === 'held' ? __("romgi's newest catalogue ({date}) looks incomplete, so this site still shows this one and will switch when romgi publishes a complete one.", { date: day(f.latest.generated_at) })
+      : __('romgi has since published the catalogue of {date}.', { date: day(f.latest.generated_at) });
+    return __h('Catalogue of {date} (version {version}) from {romgi}, built {built}.{status}{hosted} {source} (MIT).', {
+      date: day(m.generated_at), version: m.version, built: day(built),
+      romgi: raw(`<a href="${esc(m.source_repo)}" target="_blank" rel="noopener">romgi</a>`),
+      status: raw(status ? ' ' + esc(status) : ''),
+      hosted: raw(hosted ? ' ' + esc(__('This site checks romgi every three hours and rebuilds when there is something new.')) : ''),
+      source: raw(`<a href="https://github.com/aldoruizluna/romgi-explorer" target="_blank" rel="noopener">${esc(__('Source code'))}</a>`) });
   },
   /** The dot beside the version: green when romgi has nothing newer, amber when it has. */
   paintFresh() {
@@ -94,9 +103,9 @@ const App = {
     if (!f || !fd) return;
     fd.dataset.s = f.state;
     const day = s => (s || '').slice(0, 10);
-    v.dataset.tip = f.state === 'current' ? `Up to date with romgi's catalogue of ${day(this.D.meta.generated_at)}.`
-      : f.state === 'held' ? `romgi's newest catalogue (${day(f.latest.generated_at)}) looks incomplete, so this site still shows the one of ${day(this.D.meta.generated_at)}.`
-      : `romgi has published a newer catalogue (${day(f.latest.generated_at)}). This site rebuilds itself within a few hours.`;
+    v.dataset.tip = f.state === 'current' ? __("Up to date with romgi's catalogue of {date}.", { date: day(this.D.meta.generated_at) })
+      : f.state === 'held' ? __("romgi's newest catalogue ({latest}) looks incomplete, so this site still shows the one of {shown}.", { latest: day(f.latest.generated_at), shown: day(this.D.meta.generated_at) })
+      : __('romgi has published a newer catalogue ({date}). This site rebuilds itself within a few hours.', { date: day(f.latest.generated_at) });
     if ($('#modal').classList.contains('on')) this.help();
   },
   /** When romgi's newest catalogue was held back as unfinished (it had lost a source, say), the Overview says so. */
@@ -104,7 +113,10 @@ const App = {
     const L = window.ROMGI.latest;
     if (!L) return '';
     const day = s => (s || '').slice(0, 10);
-    return `<div class="notice info" role="status">${icon('alert', 16)}<div><b>romgi's newest catalogue looks incomplete.</b> The one dated ${esc(day(L.generated_at))} has ${esc(L.reason)}. This explorer still shows the catalogue of ${esc(day(this.D.meta.generated_at))} and will switch when romgi publishes a complete one.</div></div>`;
+    const why = L.against ? __('{entries} entries and {links} links against {refEntries} and {refLinks} in the last complete catalogue ({drop}% fewer entries)',
+      { entries: L.entries, links: L.links, refEntries: L.against.entries, refLinks: L.against.links, drop: L.drop }) : L.reason;
+    return `<div class="notice info" role="status">${icon('alert', 16)}<div>${__h("<b>romgi's newest catalogue looks incomplete.</b> The one dated {date} has {why}. This explorer still shows the catalogue of {shown} and will switch when romgi publishes a complete one.",
+      { date: day(L.generated_at), why, shown: day(this.D.meta.generated_at) })}</div></div>`;
   },
   paintTheme() { $('#theme-ic').innerHTML = icon(Theme.effective() === 'dark' ? 'sun' : 'moon', 16); Theme.paintMeta(); },
   schedule() { if (this._raf) return; this._raf = requestAnimationFrame(() => { this._raf = 0; this.refresh(); }); },
@@ -116,10 +128,10 @@ const App = {
 
   /* -------------------------------------------------------- facet rail */
   buildRail() {
-    let html = `<div class="rail-head"><h2>Slice</h2><span class="unit" id="unit"></span><button class="btn sm ghost" data-act="reset" id="rail-reset">${icon('reset', 13)}Reset</button></div>
-      <div class="rail-note">Click to include. Alt-click to exclude. Every count follows the other filters.</div>`;
+    let html = `<div class="rail-head"><h2>${__('Slice')}</h2><span class="unit" id="unit"></span><button class="btn sm ghost" data-act="reset" id="rail-reset">${icon('reset', 13)}${__('Reset')}</button></div>
+      <div class="rail-note">${__('Click to include. Alt-click to exclude. Every count follows the other filters.')}</div>`;
     for (const g of GROUPS) {
-      html += `<div class="rail-group eyebrow">${esc(g.label)}</div>`;
+      html += `<div class="rail-group eyebrow">${esc(__(g.label))}</div>`;
       for (const f of this.S.facets.filter(x => x.group === g.id)) html += this.facetShell(f);
     }
     $('#rail').innerHTML = html;
@@ -129,15 +141,15 @@ const App = {
     return `<div class="fg${open ? ' open' : ''}" data-fid="${f.id}">
       <button class="fg-h" data-act="fg" data-f="${f.id}" aria-expanded="${open}">${icon('chev-r', 14)}<span>${esc(f.label)}</span><span class="tail"></span></button>
       <div class="fg-b">
-        ${f.modeToggle ? `<div class="fg-tools"><div class="seg" role="group" aria-label="Match mode"><button data-act="fmode" data-f="${f.id}" data-m="any">Any of</button><button data-act="fmode" data-f="${f.id}" data-m="all">All of</button></div></div>` : ''}
-        ${f.search ? `<input class="input fg-find" data-find="${f.id}" placeholder="Find ${esc(f.label.toLowerCase())}" aria-label="Find in ${esc(f.label)}" autocomplete="off">` : ''}
+        ${f.modeToggle ? `<div class="fg-tools"><div class="seg" role="group" aria-label="${esc(__('Match mode'))}"><button data-act="fmode" data-f="${f.id}" data-m="any">${__('Any of')}</button><button data-act="fmode" data-f="${f.id}" data-m="all">${__('All of')}</button></div></div>` : ''}
+        ${f.search ? `<input class="input fg-find" data-find="${f.id}" placeholder="${esc(__('Find {what}', { what: f.label.toLowerCase() }))}" aria-label="${esc(__('Find in {what}', { what: f.label }))}" autocomplete="off">` : ''}
         <div class="fg-list"></div>
       </div></div>`;
   },
   facetName(f, v) { return v >= f.n ? (f.noneExtra || '') : f.name(v); },
   updateRail() {
     const S = this.S;
-    $('#unit').textContent = `counting ${S.state.grain}`;
+    $('#unit').textContent = S.state.grain === 'entries' ? __('counting entries') : __('counting links');
     $('#rail-reset').hidden = !S.anyActive();
     for (const f of S.facets) {
       const fg = $(`.fg[data-fid="${f.id}"]`), st = S.state.f[f.id], n = st ? st.inc.size + st.exc.size : 0;
@@ -154,13 +166,13 @@ const App = {
     if (f.layout === 'alpha') {
       const maxC = Math.max(1, ...Array.from(counts));
       const order = [...Array.from({ length: 26 }, (_, i) => i + 2), 1, 0];
-      return `<div class="ini-grid">${order.map(v => `<button class="${cls(v).trim()}" style="--h:${((counts[v] / maxC) * 100).toFixed(0)}%" data-act="facet" data-f="ini" data-v="${v}" data-tk="${Tip.tk(() => tipBox(v === 0 ? 'Other first character' : v === 1 ? 'Starts with a digit' : 'Starts with ' + initialName(v), [[grain, fmtN(counts[v])]]))}">${esc(initialName(v))}</button>`).join('')}</div>`;
+      return `<div class="ini-grid">${order.map(v => `<button class="${cls(v).trim()}" style="--h:${((counts[v] / maxC) * 100).toFixed(0)}%" data-act="facet" data-f="ini" data-v="${v}" data-tk="${Tip.tk(() => tipBox(v === 0 ? __('Other first character') : v === 1 ? __('Starts with a digit') : __('Starts with {letter}', { letter: initialName(v) }), [[grainName(grain), fmtN(counts[v])]]))}">${esc(initialName(v))}</button>`).join('')}</div>`;
     }
     if (f.layout === 'sizes') {
       const maxC = Math.max(1, ...Array.from(counts));
-      const short = ['Unk.', 'Cart', 'Small', 'CD', 'DVD', 'DVD+', 'Sus.'];
+      const short = [__('Unk.'), __('Cart'), __('Small'), 'CD', 'DVD', 'DVD+', __('Sus.')];
       const colour = v => (v === 0 ? 'var(--ink-4)' : v === 6 ? 'var(--serious)' : `var(--ord-${v})`);
-      return `<div class="sizebars">${Array.from({ length: 7 }, (_, v) => `<button class="${cls(v).trim()}" data-act="facet" data-f="sz" data-v="${v}" data-tk="${Tip.tk(() => tipBox(D.dims.sizes[v].label, [['Range', D.dims.sizes[v].hint], [grain, fmtN(counts[v])]]))}">
+      return `<div class="sizebars">${Array.from({ length: 7 }, (_, v) => `<button class="${cls(v).trim()}" data-act="facet" data-f="sz" data-v="${v}" data-tk="${Tip.tk(() => tipBox(D.dims.sizes[v].label, [[__('Range'), D.dims.sizes[v].hint], [grainName(grain), fmtN(counts[v])]]))}">
         <span class="col" style="height:${Math.max(2, Math.round((counts[v] / maxC) * 44))}px;--c:${colour(v)}"></span><span>${short[v]}</span></button>`).join('')}</div>`;
     }
     let order = Array.from({ length: size }, (_, i) => i);
@@ -184,34 +196,34 @@ const App = {
       return `<button class="fr${cls(v)}" style="--w:${((counts[v] / maxC) * 100).toFixed(1)}%;${bar ? `--bar:${bar}` : ''}" data-act="facet" data-f="${f.id}" data-v="${v}" data-tip="${esc(tipTxt)}">
         <span class="tick">${st.exc.has(v) ? icon('minus', 11) : icon('check', 11)}</span><span class="lbl">${lead}<span>${esc(nm)}</span></span><span class="n">${fmtN(counts[v])}</span></button>`;
     }).join('');
-    const more = long ? `<button class="facet-more" data-act="fmore" data-f="${f.id}">${showAll ? 'Show fewer' : `Show ${hidden} more`}</button>` : '';
-    return rows + more + (list.length === 0 ? '<div class="muted" style="padding:8px">Nothing matches.</div>' : '');
+    const more = long ? `<button class="facet-more" data-act="fmore" data-f="${f.id}">${showAll ? __('Show fewer') : __('Show {n} more', { n: hidden })}</button>` : '';
+    return rows + more + (list.length === 0 ? `<div class="muted" style="padding:8px">${__('Nothing matches.')}</div>` : '');
   },
 
   /* -------------------------------------------------------- scope bar and tabs */
   renderScope() {
     const S = this.S, k = S.kpis(), b = S.baseK, g = S.state.grain;
-    const chips = S.chips().map(c => `<span class="fchip${c.neg ? ' neg' : ''}"${c.full && c.full !== c.text ? ` title="${esc(c.full)}"` : ''}><span><b>${c.neg ? 'Not ' : ''}${esc(c.label)}</b> ${esc(c.text)}</span><button data-act="chip-x" data-k="${esc(c.key)}" aria-label="Remove filter">${icon('x', 12)}</button></span>`).join('');
+    const chips = S.chips().map(c => `<span class="fchip${c.neg ? ' neg' : ''}"${c.full && c.full !== c.text ? ` title="${esc(c.full)}"` : ''}><span><b>${esc(c.neg ? __('Not {label}', { label: c.label }) : c.label)}</b> ${esc(c.text)}</span><button data-act="chip-x" data-k="${esc(c.key)}" aria-label="${esc(__('Remove filter'))}">${icon('x', 12)}</button></span>`).join('');
     const peek = this.ui.sqlpeek ? this.sqlPeekHTML() : '';
     $('#scope').innerHTML = `
-      <div class="seg" role="group" aria-label="Count by"><button data-act="grain" data-g="entries" aria-pressed="${g === 'entries'}">Entries</button><button data-act="grain" data-g="links" aria-pressed="${g === 'links'}">Links</button></div>
-      <div class="count"><b class="num">${fmtN(g === 'entries' ? k.entries : k.links)}</b><span class="of num">of ${fmtN(g === 'entries' ? b.entries : b.links)}</span>
-        <span class="muted">·</span><span class="of num">${fmtN(g === 'entries' ? k.links : k.entries)} ${g === 'entries' ? 'links' : 'entries'}</span></div>
+      <div class="seg" role="group" aria-label="${esc(__('Count by'))}"><button data-act="grain" data-g="entries" aria-pressed="${g === 'entries'}">${__('Entries')}</button><button data-act="grain" data-g="links" aria-pressed="${g === 'links'}">${__('Links')}</button></div>
+      <div class="count"><b class="num">${fmtN(g === 'entries' ? k.entries : k.links)}</b><span class="of num">${__('of {total}', { total: g === 'entries' ? b.entries : b.links })}</span>
+        <span class="muted">·</span><span class="of num">${fmtN(g === 'entries' ? k.links : k.entries)} ${grainName(g === 'entries' ? 'links' : 'entries')}</span></div>
       <span style="flex:1"></span>
-      ${Url.enabled ? `<button class="btn sm ghost" data-act="copylink" data-tip="Copy a link to this slice">${icon('link', 13)}<span>Link</span></button>` : ''}
-      ${S.anyActive() ? `<button class="btn sm ghost" data-act="reset" data-tip="Remove every filter">${icon('reset', 13)}<span>Clear</span></button>` : ''}
-      <button class="btn sm ghost" data-act="sqlpeek" aria-pressed="${this.ui.sqlpeek}" data-tip="Show the SQL behind this slice">${icon('code', 14)}<span>SQL</span></button>
+      ${Url.enabled ? `<button class="btn sm ghost" data-act="copylink" data-tip="${esc(__('Copy a link to this slice'))}">${icon('link', 13)}<span>${__('Link')}</span></button>` : ''}
+      ${S.anyActive() ? `<button class="btn sm ghost" data-act="reset" data-tip="${esc(__('Remove every filter'))}">${icon('reset', 13)}<span>${__('Clear')}</span></button>` : ''}
+      <button class="btn sm ghost" data-act="sqlpeek" aria-pressed="${this.ui.sqlpeek}" data-tip="${esc(__('Show the SQL behind this slice'))}">${icon('code', 14)}<span>SQL</span></button>
       <div class="chips">${chips}</div>${peek}`;
   },
   sqlPeekHTML() {
     const q = this.S.sql();
     return `<div class="sqlpeek"><div class="codebox"><pre>${hiSQL(q.select)}</pre>
-      <div class="copy" style="display:flex;gap:6px"><button class="btn sm" data-act="copy" data-text="${esc(q.select)}">${icon('copy', 13)}Copy</button>${this.sqlOK() ? `<button class="btn sm primary" data-act="to-sql" data-sql="${esc(q.select)}">${icon('term', 13)}Open in SQL</button>` : ''}</div></div>
-      ${q.exact ? '' : `<div class="muted" style="margin-top:6px;font-size:12px">One filter has no exact SQL form, so this query is an approximation.</div>`}</div>`;
+      <div class="copy" style="display:flex;gap:6px"><button class="btn sm" data-act="copy" data-text="${esc(q.select)}">${icon('copy', 13)}${__('Copy')}</button>${this.sqlOK() ? `<button class="btn sm primary" data-act="to-sql" data-sql="${esc(q.select)}">${icon('term', 13)}${__('Open in SQL')}</button>` : ''}</div></div>
+      ${q.exact ? '' : `<div class="muted" style="margin-top:6px;font-size:12px">${__('One filter has no exact SQL form, so this query is an approximation.')}</div>`}</div>`;
   },
   renderTabs() {
     const q = this.D.raw.quality.filter(c => ['serious', 'critical', 'warn'].includes(c.sev)).length;
-    $('#tabs').innerHTML = TABS.map(t => `<button class="tab" role="tab" data-act="view" data-v="${t.id}" aria-selected="${this.ui.view === t.id}" data-tip="${esc(t.label)} (g then ${t.key})">${icon(t.icon, 15)}<span>${esc(t.label)}</span>${t.id === 'quality' ? `<span class="badge-n">${q}</span>` : ''}</button>`).join('');
+    $('#tabs').innerHTML = TABS.map(t => `<button class="tab" role="tab" data-act="view" data-v="${t.id}" aria-selected="${this.ui.view === t.id}" data-tip="${esc(__('{tab} (g then {key})', { tab: __(t.label), key: t.key }))}">${icon(t.icon, 15)}<span>${esc(__(t.label))}</span>${t.id === 'quality' ? `<span class="badge-n">${q}</span>` : ''}</button>`).join('');
   },
   show(view) {
     if (!this.views[view]) return;
@@ -226,7 +238,7 @@ const App = {
     Tip.reset(); Tip.hide();
     const v = this.views[this.ui.view], root = $('#view');
     try { v.render(root); if (v.after) v.after(root); }
-    catch (e) { console.error(e); root.innerHTML = `<div class="card"><h3>This view failed to draw</h3><p class="muted">${esc(e.message)}</p></div>`; }
+    catch (e) { console.error(e); root.innerHTML = `<div class="card"><h3>${__('This view failed to draw')}</h3><p class="muted">${esc(e.message)}</p></div>`; }
   },
 
   /* -------------------------------------------------------- actions */
@@ -260,13 +272,14 @@ const App = {
         break;
       }
       case 'reset': $('#q').value = ''; if (Url.pending) Url.pending.q = ''; S.clearAll(); break;
-      case 'copylink': Url.sync(false); copyText(location.href, 'Link copied'); break;
+      case 'copylink': Url.sync(false); copyText(location.href, __('Link copied')); break;
       case 'open': Drawer.open(+d.i); break;
       case 'close': Drawer.close(); break;
       case 'copy': copyText(d.text); break;
       case 'roll': this.roll(); break;
       case 'theme': Theme.toggle(); this.paintTheme(); this.refresh(); break;
       case 'help': this.help(); break;
+      case 'lang': Lang.set(Lang.other); break;
       case 'rail': $('#app').classList.toggle('rail-open'); $('#scrim').classList.toggle('on', $('#app').classList.contains('rail-open')); break;
       case 'scrim': $('#app').classList.remove('rail-open'); $('#scrim').classList.remove('on'); Drawer.close(); break;
       case 'modal-bg': if (ev.target === el) el.classList.remove('on'); break;
@@ -278,30 +291,30 @@ const App = {
   },
   handlers: {},
   roll() {
-    if (!this.D.detailReady) return toast('The titles are still loading.');
+    if (!this.D.detailReady) return toast(__('The titles are still loading.'));
     const ids = this.S.visIdx('entries');
-    if (!ids.length) return toast('Nothing in this slice to roll.');
+    if (!ids.length) return toast(__('Nothing in this slice to roll.'));
     const el = $('#roll-ic'); el.firstElementChild.style.transition = 'rotate .5s cubic-bezier(.3,1.5,.5,1)'; el.firstElementChild.style.rotate = (Math.floor(Math.random() * 3) + 1) * 90 + 'deg';
     Drawer.open(ids[Math.floor(Math.random() * ids.length)]);
   },
   help() {
     const k = (...a) => a.map(x => `<span class="kbd">${esc(x)}</span>`).join(' ');
-    $('#modal').innerHTML = `<div class="box" role="dialog" aria-label="Help" data-modal="help"><h2>How slicing works</h2>
-      <p class="muted" style="margin:6px 0 0">Every filter narrows entries and links together. Counts next to each value show what you would get if you added that value, given the other filters.</p>
+    $('#modal').innerHTML = `<div class="box" role="dialog" aria-label="${esc(__('Help'))}" data-modal="help"><h2>${__('How slicing works')}</h2>
+      <p class="muted" style="margin:6px 0 0">${__('Every filter narrows entries and links together. Counts next to each value show what you would get if you added that value, given the other filters.')}</p>
       <dl class="keys">
-        <dt>${k('Click')}</dt><dd>Include a value. Several values in one filter mean any of them.</dd>
-        <dt>${k('Alt', 'Click')}</dt><dd>Exclude a value instead.</dd>
-        <dt>${k('/')}</dt><dd>Search titles. Use -word to exclude and "quotes" for a phrase.</dd>
-        <dt>${k('R')}</dt><dd>Roll the dice: open a random entry from the current slice.</dd>
-        <dt>${k('g', 'o')} ${k('d')} ${k('b')} ${k('s')} ${k('m')} ${k('q')} ${k('l')}</dt><dd>Go to Overview, Dice, Browse, Sources, Schema, Quality, SQL.</dd>
-        <dt>${k('T')}</dt><dd>Switch between dark and light.</dd>
-        <dt>${k('Esc')}</dt><dd>Close the entry drawer or this panel.</dd>
+        <dt>${k(__('Click'))}</dt><dd>${__('Include a value. Several values in one filter mean any of them.')}</dd>
+        <dt>${k('Alt', __('Click'))}</dt><dd>${__('Exclude a value instead.')}</dd>
+        <dt>${k('/')}</dt><dd>${__('Search titles. Use -word to exclude and "quotes" for a phrase.')}</dd>
+        <dt>${k('R')}</dt><dd>${__('Roll the dice: open a random entry from the current slice.')}</dd>
+        <dt>${k('g', 'o')} ${k('d')} ${k('b')} ${k('s')} ${k('m')} ${k('q')} ${k('l')}</dt><dd>${esc(__('Go to {tabs}.', { tabs: TABS.map(t => __(t.label)).join(', ') }))}</dd>
+        <dt>${k('T')}</dt><dd>${__('Switch between dark and light.')}</dd>
+        <dt>${k('Esc')}</dt><dd>${__('Close the entry drawer or this panel.')}</dd>
       </dl>
-      <p class="muted" style="margin:18px 0 0">Entries are releases (title, platform and region). Links are the files offered for them, so one entry can have several. Switch the count with the Entries and Links toggle above the tabs.</p>
-      <h3 style="margin:18px 0 0;font-size:14px">About this data</h3>
+      <p class="muted" style="margin:18px 0 0">${__('Entries are releases (title, platform and region). Links are the files offered for them, so one entry can have several. Switch the count with the Entries and Links toggle above the tabs.')}</p>
+      <h3 style="margin:18px 0 0;font-size:14px">${__('About this data')}</h3>
       <p class="muted" style="margin:6px 0 0">${this.aboutText()}</p>
       ${Pwa.helpHTML()}
-      <div style="display:flex;justify-content:flex-end;margin-top:16px"><button class="btn primary" data-act="close-modal">Close</button></div></div>`;
+      <div style="display:flex;justify-content:flex-end;margin-top:16px"><button class="btn primary" data-act="close-modal">${__('Close')}</button></div></div>`;
     $('#modal').classList.add('on');
   },
 
@@ -354,12 +367,12 @@ const Loader = {
   progress(got, total) {
     const l = $('#loader'); if (!l) return;
     this.dl = true;
-    const f = total ? Math.min(1, got / total) : 0, mb = x => (x / 1e6).toFixed(1);
+    const f = total ? Math.min(1, got / total) : 0, mb = x => fmtD(x / 1e6);
     $$('.px i', l).forEach((i, k) => i.classList.toggle('on', k < Math.ceil(f * 8)));
-    $('.phase', l).textContent = total ? `Downloading catalogue · ${mb(got)} of ${mb(total)} MB` : `Downloading catalogue · ${mb(got)} MB`;
+    $('.phase', l).textContent = total ? __('Downloading catalogue · {got} of {total} MB', { got: mb(got), total: mb(total) }) : __('Downloading catalogue · {got} MB', { got: mb(got) });
   },
   done() { const l = $('#loader'); if (!l) return; $$('.px i', l).forEach(i => i.classList.add('on')); l.classList.add('done'); setTimeout(() => l.remove(), 450); },
-  fail(e) { const l = $('#loader'); $('.inner', l).innerHTML = `<div class="word">romgi</div><div class="err"><b>The catalogue could not be loaded.</b><br>${esc(e.message || e)}</div>`; },
+  fail(e) { const l = $('#loader'); $('.inner', l).innerHTML = `<div class="word">romgi</div><div class="err"><b>${__('The catalogue could not be loaded.')}</b><br>${esc(e.message || e)}</div>`; },
 };
 /** Resolves once the first frame has been presented (the paint entry exists), so nothing is requested before the loader's headline is on
  *  screen. Lighthouse counts a request that finishes before the largest paint as part of it, and a small file on a fast link can finish in
@@ -371,13 +384,15 @@ const afterFirstPaint = () => new Promise(done => {
   setTimeout(done, 600);
 });
 async function boot() {
+  const bl = window.ROMGI_LANG || { code: 'en' };          // settled by web/lang/boot.js, which also started fetching the dictionary
   Theme.apply(); Tip.init(); App.loadUI();
   try {
-    await afterFirstPaint();
+    await Promise.all([afterFirstPaint(), Promise.race([bl.ready, sleep(4000)])]);       // a dictionary that never arrives must not hold the page
+    Lang.use(bl.code, bl.locale); Lang.apply(document);
     const raw = await loadDataset(t => Loader.phase(t));
-    Loader.phase('Indexing titles and links'); await sleep(20);
+    Loader.phase(__('Indexing titles and links')); await sleep(20);
     App.D = await runSliced(prepareSteps(raw));
-    Loader.phase('Counting every facet'); await sleep(20);
+    Loader.phase(__('Counting every facet')); await sleep(20);
     App.S = new Slicer(App.D, { defer: true });
     await runSliced(App.S.baseSteps());
     await runSliced(collectionSteps());

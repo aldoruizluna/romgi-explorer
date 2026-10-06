@@ -1,72 +1,72 @@
 /* ============================================================ engine: facets, crossfilter counts, aggregation, SQL */
 
-const RA_NAMES = ['No achievements', '1 to 9', '10 to 24', '25 to 49', '50 to 99', '100 to 249', '250 or more'];
+const RA_NAMES = [N_('No achievements'), N_('1 to 9'), N_('10 to 24'), N_('25 to 49'), N_('50 to 99'), N_('100 to 249'), N_('250 or more')];
 const RA_SQL = ['COALESCE(e.ra_num_achievements, 0) = 0', 'e.ra_num_achievements BETWEEN 1 AND 9', 'e.ra_num_achievements BETWEEN 10 AND 24',
   'e.ra_num_achievements BETWEEN 25 AND 49', 'e.ra_num_achievements BETWEEN 50 AND 99', 'e.ra_num_achievements BETWEEN 100 AND 249', 'e.ra_num_achievements >= 250'];
-const NL_NAMES = ['1 link', '2 links', '3 links', '4 links', '5 or more'];
+const NL_NAMES = [N_('1 link'), N_('2 links'), N_('3 links'), N_('4 links'), N_('5 or more')];
 const NL_SQL = ['= 1', '= 2', '= 3', '= 4', '>= 5'];
-const ART_NAMES = ['No box art', 'GameTDB', 'libretro'];
+const ART_NAMES = [N_('No box art'), 'GameTDB', 'libretro'];
 const ART_SQL = ["COALESCE(e.boxart_url, '') = ''", "COALESCE(e.boxart_url, '') LIKE 'https://art.gametdb.com/%'", "COALESCE(e.boxart_url, '') LIKE 'https://thumbnails.libretro.com/%'"];
 const initialName = v => (v === 0 ? '#' : v === 1 ? '0-9' : String.fromCharCode(63 + v));
 
 function makeFacets(D) {
   const { E, dims } = D;
-  const regNames = [...dims.regions.map(r => r.name), 'No region'];
+  const regNames = [...dims.regions.map(r => r.name), __('No region')];
   const srcName = s => dims.sources[s].short;
   const comboName = m => D.comboSources(m).map(s => D.srcAbbr(s)).join(' + ');
   const comboFull = m => D.comboSources(m).map(srcName).join(' + ');
   const F = [];
-  F.push({ id: 'brand', label: 'Brand', group: 'catalog', level: 'e', kind: 'single', n: dims.brands.length, col: E.brand, open: true,
+  F.push({ id: 'brand', label: __('Brand'), group: 'catalog', level: 'e', kind: 'single', n: dims.brands.length, col: E.brand, open: true,
     name: v => dims.brands[v], pred: v => `e.platform IN (SELECT id FROM platforms WHERE brand = ${sq(dims.brands[v])})` });
-  F.push({ id: 'plat', label: 'Platform', group: 'catalog', level: 'e', kind: 'single', n: dims.platforms.length, col: E.platform, open: true, search: true,
+  F.push({ id: 'plat', label: __('Platform'), group: 'catalog', level: 'e', kind: 'single', n: dims.platforms.length, col: E.platform, open: true, search: true,
     name: v => dims.platforms[v].name, code: v => dims.platforms[v].code, pred: v => `e.platform = ${sq(dims.platforms[v].id)}`,
     inSql: { expr: 'e.platform', lit: v => sq(dims.platforms[v].id) } });
-  F.push({ id: 'reg', label: 'Region', group: 'catalog', level: 'e', kind: 'mask', n: 5, mask: E.regBits, open: true, name: v => regNames[v],
+  F.push({ id: 'reg', label: __('Region'), group: 'catalog', level: 'e', kind: 'mask', n: 5, mask: E.regBits, open: true, name: v => regNames[v],
     pred: v => (v < 4 ? `e.slug IN (SELECT entry FROM regions_entries WHERE region = ${sq(dims.regions[v].id)})`
       : 'e.slug NOT IN (SELECT entry FROM regions_entries)') });
-  F.push({ id: 'flag', label: 'Release flags', group: 'catalog', level: 'e', kind: 'mask', n: dims.flags.length, mask: E.flags, name: v => dims.flags[v].label,
-    modeToggle: true, noneExtra: 'No flags', hint: 'Read from the tags in each title', search: true,
+  F.push({ id: 'flag', label: __('Release flags'), group: 'catalog', level: 'e', kind: 'mask', n: dims.flags.length, mask: E.flags, name: v => dims.flags[v].label,
+    modeToggle: true, noneExtra: __('No flags'), hint: __('Read from the tags in each title'), search: true,
     pred: v => (v >= dims.flags.length ? 'NOT (' + dims.flags.filter(x => x.sql).map(x => x.sql).join(' OR ') + ')' : dims.flags[v].sql) });
-  F.push({ id: 'ini', label: 'Starts with', group: 'catalog', level: 'e', kind: 'single', n: 28, col: E.initial, name: initialName, layout: 'alpha',
+  F.push({ id: 'ini', label: __('Starts with'), group: 'catalog', level: 'e', kind: 'single', n: 28, col: E.initial, name: initialName, layout: 'alpha',
     pred: v => (v === 0 ? "NOT (upper(substr(trim(e.title), 1, 1)) BETWEEN 'A' AND 'Z' OR substr(trim(e.title), 1, 1) BETWEEN '0' AND '9')"
       : v === 1 ? "substr(trim(e.title), 1, 1) BETWEEN '0' AND '9'" : `upper(substr(trim(e.title), 1, 1)) = ${sq(initialName(v))}`) });
-  F.push({ id: 'avail', label: 'Offered by', group: 'coverage', level: 'e', kind: 'single', n: 1 << dims.sources.length, col: E.smask, name: comboName, fullName: comboFull, layout: 'combo', skip0: true,
-    hint: 'Which sources carry the entry, over all its links',
+  F.push({ id: 'avail', label: __('Offered by'), group: 'coverage', level: 'e', kind: 'single', n: 1 << dims.sources.length, col: E.smask, name: comboName, fullName: comboFull, layout: 'combo', skip0: true,
+    hint: __('Which sources carry the entry, over all its links'),
     pred: v => {
       const inn = D.comboSources(v), ids = inn.map(x => sq(dims.sources[x].id)).join(', ');
       const has = inn.map(x => `MAX(source_id = ${sq(dims.sources[x].id)}) = 1`);
       const only = inn.length < dims.sources.length ? [`MIN(source_id IN (${ids})) = 1`] : [];
       return `e.slug IN (SELECT entry FROM links GROUP BY entry HAVING ${[...has, ...only].join(' AND ')})`;
     } });
-  F.push({ id: 'nl', label: 'Links per entry', group: 'coverage', level: 'e', kind: 'single', n: 5, col: E.nlb, name: v => NL_NAMES[v],
+  F.push({ id: 'nl', label: __('Links per entry'), group: 'coverage', level: 'e', kind: 'single', n: 5, col: E.nlb, name: v => __(NL_NAMES[v]),
     pred: v => `e.slug IN (SELECT entry FROM links GROUP BY entry HAVING COUNT(*) ${NL_SQL[v]})` });
-  F.push({ id: 'ra', label: 'RetroAchievements', group: 'coverage', level: 'e', kind: 'single', n: 7, col: E.rab, name: v => RA_NAMES[v], pred: v => RA_SQL[v] });
-  F.push({ id: 'art', label: 'Box art', group: 'coverage', level: 'e', kind: 'single', n: 3, col: E.artk, name: v => ART_NAMES[v], pred: v => ART_SQL[v] });
-  F.push({ id: 'ser', label: 'Serial in rom_id', group: 'coverage', level: 'e', kind: 'single', n: 2, col: E.hasSer, name: v => ['No serial', 'Has a serial'][v],
+  F.push({ id: 'ra', label: 'RetroAchievements', group: 'coverage', level: 'e', kind: 'single', n: 7, col: E.rab, name: v => __(RA_NAMES[v]), pred: v => RA_SQL[v] });
+  F.push({ id: 'art', label: __('Box art'), group: 'coverage', level: 'e', kind: 'single', n: 3, col: E.artk, name: v => __(ART_NAMES[v]), pred: v => ART_SQL[v] });
+  F.push({ id: 'ser', label: __('Serial in rom_id'), group: 'coverage', level: 'e', kind: 'single', n: 2, col: E.hasSer, name: v => [__('No serial'), __('Has a serial')][v],
     pred: v => (v ? "COALESCE(e.rom_id, '') <> ''" : "COALESCE(e.rom_id, '') = ''") });
-  F.push({ id: 'grp', label: 'Multi-disc set', group: 'coverage', level: 'e', kind: 'single', n: 2, col: E.inGrp, name: v => ['Standalone', 'Part of a set'][v],
+  F.push({ id: 'grp', label: __('Multi-disc set'), group: 'coverage', level: 'e', kind: 'single', n: 2, col: E.inGrp, name: v => [__('Standalone'), __('Part of a set')][v],
     pred: v => `e.slug ${v ? '' : 'NOT '}IN (SELECT entry FROM entry_group_members)` });
   // ---- link level
   const L = D.L;
-  F.push({ id: 'src', label: 'Source', group: 'files', level: 'l', kind: 'single', n: dims.sources.length, col: L.src, open: true, name: srcName, color: v => D.srcVar(v),
+  F.push({ id: 'src', label: __('Source'), group: 'files', level: 'l', kind: 'single', n: dims.sources.length, col: L.src, open: true, name: srcName, color: v => D.srcVar(v),
     pred: v => `l.source_id = ${sq(dims.sources[v].id)}`, inSql: { expr: 'l.source_id', lit: v => sq(dims.sources[v].id) } });
-  F.push({ id: 'type', label: 'Link type', group: 'files', level: 'l', kind: 'single', n: dims.types.length, col: L.type, name: v => dims.types[v],
+  F.push({ id: 'type', label: __('Link type'), group: 'files', level: 'l', kind: 'single', n: dims.types.length, col: L.type, name: v => dims.typeNames[v],
     pred: v => (dims.types[v] === 'Game (multi-part)' ? "l.type LIKE 'Game #%'" : `l.type = ${sq(dims.types[v])}`) });
-  F.push({ id: 'fmt', label: 'Format', group: 'files', level: 'l', kind: 'single', n: dims.formats.length, col: L.fmt, search: true, name: v => dims.formats[v] || '(blank)',
+  F.push({ id: 'fmt', label: __('Format'), group: 'files', level: 'l', kind: 'single', n: dims.formats.length, col: L.fmt, search: true, name: v => dims.formats[v] || __('(blank)'),
     pred: v => `COALESCE(l.format, '') = ${sq(dims.formats[v])}`, inSql: { expr: "COALESCE(l.format, '')", lit: v => sq(dims.formats[v]) } });
-  F.push({ id: 'deliv', label: 'Delivery', group: 'files', level: 'l', kind: 'single', n: 2, col: L.deliv, name: v => ['HTTP download', 'BitTorrent'][v],
+  F.push({ id: 'deliv', label: __('Delivery'), group: 'files', level: 'l', kind: 'single', n: 2, col: L.deliv, name: v => [__('HTTP download'), 'BitTorrent'][v],
     pred: v => `l.torrent_infohash IS ${v ? 'NOT ' : ''}NULL` });
-  F.push({ id: 'coll', label: 'Torrent collection', group: 'files', level: 'l', kind: 'single', n: dims.collections.length, col: L.coll, name: v => dims.collections[v], noneExtra: 'Not a torrent',
+  F.push({ id: 'coll', label: __('Torrent collection'), group: 'files', level: 'l', kind: 'single', n: dims.collections.length, col: L.coll, name: v => dims.collections[v], noneExtra: __('Not a torrent'),
     pred: v => (v >= dims.collections.length ? 'l.torrent_infohash IS NULL'
       : `COALESCE(l.torrent_infohash IN (SELECT infohash FROM torrents WHERE name LIKE ${sq('%Minerva_Myrient - ' + dims.collections[v] + '%')}), 0)`) });
-  F.push({ id: 'pack', label: 'Torrent pack', group: 'files', level: 'l', kind: 'single', n: dims.packs.length, col: L.pack8, search: true, noneExtra: 'Not a torrent',
+  F.push({ id: 'pack', label: __('Torrent pack'), group: 'files', level: 'l', kind: 'single', n: dims.packs.length, col: L.pack8, search: true, noneExtra: __('Not a torrent'),
     name: v => dims.packs[v].label,
     pred: v => {
       if (v >= dims.packs.length) return 'l.torrent_infohash IS NULL';
       const p = dims.packs[v];       // the hosted build carries no infohashes, so it names the pack instead
       return p.infohash ? `COALESCE(l.torrent_infohash = ${sq(p.infohash)}, 0)` : `COALESCE(l.torrent_infohash IN (SELECT infohash FROM torrents WHERE name = ${sq(p.name)}), 0)`;
     } });
-  F.push({ id: 'sz', label: 'Size class', group: 'files', level: 'l', kind: 'single', n: 7, col: L.sb, layout: 'sizes', name: v => dims.sizes[v].label,
+  F.push({ id: 'sz', label: __('Size class'), group: 'files', level: 'l', kind: 'single', n: 7, col: L.sb, layout: 'sizes', name: v => dims.sizes[v].label,
     hint: v => dims.sizes[v].hint, pred: v => dims.sizes[v].sql });
   // Text for each filter value that survives a new catalogue (ids and names, not positions), for links: tok(value) and untok(text) -> value or -1.
   const find = (list, ok) => list.findIndex(ok);
@@ -348,12 +348,12 @@ class Slicer {
 
   /* ---------------------------------------------------------- dimensions for charts and the pivot */
   dimOf(id) {
-    if (!id || id === 'all') return { id: 'all', label: 'Everything', level: 'e', kind: 'single', n: 1, col: new Uint8Array(this.E.n), name: () => 'All' };
+    if (!id || id === 'all') return { id: 'all', label: __('Everything'), level: 'e', kind: 'single', n: 1, col: new Uint8Array(this.E.n), name: () => __('All') };
     const f = this.byId[id];
     return f;
   }
   dimSize(d) { return d.n + (d.noneExtra ? 1 : 0); }
-  dimName(d, v) { return v >= d.n ? (d.noneExtra || '(none)') : d.name(v); }
+  dimName(d, v) { return v >= d.n ? (d.noneExtra || __('(none)')) : d.name(v); }
   /** Per-link value of a single-valued dimension, as a flat array (cached; 255 means "no value"). */
   linkValues(d) {
     const D = this.D, cache = D._lv || (D._lv = {});
@@ -587,16 +587,16 @@ class Slicer {
   /* ---------------------------------------------------------- chips describing the active slice */
   chips() {
     const out = [];
-    if (this.state.q.trim()) out.push({ key: 'q', label: 'Title', text: this.state.q.trim(), neg: false });
+    if (this.state.q.trim()) out.push({ key: 'q', label: __('Title'), text: this.state.q.trim(), neg: false });
     for (const f of this.facets) {
       const s = this.state.f[f.id];
       if (!s) continue;
       const nm = v => (v >= f.n ? (f.noneExtra || '') : f.name(v));
-      const short = (arr, j) => (arr.length > 3 ? `${arr.slice(0, 2).join(j)} and ${arr.length - 2} more` : arr.join(j));
+      const short = (arr, j) => (arr.length > 3 ? __('{list} and {n} more', { list: arr.slice(0, 2).join(j), n: arr.length - 2 }) : arr.join(j));
       if (s.inc.size) {
-        const vs = [...s.inc].sort((a, b) => a - b), arr = vs.map(nm), j = s.mode === 'all' ? ' and ' : ', ';
+        const vs = [...s.inc].sort((a, b) => a - b), arr = vs.map(nm), j = s.mode === 'all' ? __(' and ') : ', ';
         const anyRa = f.id === 'ra' && vs.length === f.n - 1 && !s.inc.has(0);            // every class except "none"
-        out.push({ key: f.id, label: f.label, text: anyRa ? 'any' : short(arr, j), full: arr.join(j), neg: false });
+        out.push({ key: f.id, label: f.label, text: anyRa ? __('any') : short(arr, j), full: arr.join(j), neg: false });
       }
       if (s.exc.size) { const arr = [...s.exc].sort((a, b) => a - b).map(nm); out.push({ key: f.id + ':x', facet: f.id, label: f.label, text: short(arr, ', '), full: arr.join(', '), neg: true }); }
     }
@@ -618,7 +618,7 @@ class Slicer {
       lines.push(['title', 'platform', 'source', 'type', 'format', 'size_bytes', 'size_class', 'pack', 'torrent_file_index'].join(sep));
       for (let k = 0; k < n; k++) {
         const l = ids[k], i = L.eo[l], p = L.pack[l];
-        lines.push([E.title[i], D.platformOf(i).id, D.dims.sources[L.src[l]].id, D.dims.types[L.type[l]], D.dims.formats[L.fmt[l]], L.size[l], D.dims.sizes[L.sb[l]].label,
+        lines.push([E.title[i], D.platformOf(i).id, D.dims.sources[L.src[l]].id, D.dims.types[L.type[l]], D.dims.formats[L.fmt[l]], L.size[l], D.dims.sizes[L.sb[l]].en || D.dims.sizes[L.sb[l]].label,
           p >= 0 ? D.dims.packs[p].label : '', L.tidx[l] >= 0 ? L.tidx[l] : ''].map(q).join(sep));
       }
     }

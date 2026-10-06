@@ -35,12 +35,12 @@ def head_tags() -> str:
             '<meta name="apple-mobile-web-app-title" content="romgi">')
 
 
-def service_worker(site: Path, data: str, detail: str, art: str, info: dict, stamp: str = "") -> tuple[str, dict]:
+def service_worker(site: Path, data: str, detail: str, art: str, lang: str, info: dict, stamp: str = "") -> tuple[str, dict]:
     """The worker for the site written in `site`. Returns its text and the lists it saves. Its build id changes whenever the page, the
     data, or the worker changes (a hash of all of them), so a browser that has an older one installs this and the page offers a reload.
     stamp (digits from the build time) leads the id so ids sort in the order they were built."""
     required = ["./", data, detail]
-    optional = [p for p in [art, "manifest.webmanifest", "icons/icon-192.png", "icons/apple-touch-icon.png",
+    optional = [p for p in [art, lang, "manifest.webmanifest", "icons/icon-192.png", "icons/apple-touch-icon.png",
                             *sorted(f"fonts/{f.name}" for f in (site / "fonts").glob("*.woff2"))] if p]
     template = (WEB / "sw.js").read_text(encoding="utf-8")
     if FILES_TOKEN not in template or "/*@BUILD@*/" not in template or "/*@INFO@*/{}" not in template:

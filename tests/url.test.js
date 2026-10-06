@@ -14,7 +14,7 @@ const fs = require('fs'), vm = require('vm'), zlib = require('zlib'), path = req
 const dsPath = process.argv[2];
 if (!dsPath) { console.error('usage: node tests/url.test.js <dataset.json.gz>'); process.exit(2); }
 const jsDir = path.join(__dirname, '..', 'web', 'js');
-const code = ['00-util.js', '10-data.js', '20-engine.js', '48-collections.js', '50-url.js'].map(f => fs.readFileSync(path.join(jsDir, f), 'utf8')).join('\n');
+const code = ['00-util.js', '01-i18n.js', '10-data.js', '20-engine.js', '48-collections.js', '50-url.js'].map(f => fs.readFileSync(path.join(jsDir, f), 'utf8')).join('\n');
 const App = { handlers: {}, views: { overview: {}, browse: {}, dice: {} }, sel: null, ui: null, saveUI() {} };
 const ctx = vm.createContext({ window: { ROMGI: { mode: 'test', data: 'x' } }, App, console, performance, TextDecoder, setTimeout, Intl,
   Uint8Array, Uint16Array, Uint32Array, Int16Array, Int32Array, Float64Array, toast() {}, Drawer: {}, $: () => ({}) });

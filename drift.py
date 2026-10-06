@@ -180,7 +180,7 @@ def pick_catalogue(latest: dict, history: list[dict], *, accept_latest: bool = F
     else:
         ref_e = max(r["entries"] for r, f in zip(rows, flags) if f)
         drop = 100 * (1 - newest["entries"] / ref_e)
-        out.update(held=True, ref=last_ok["commit"], use=shown(last_ok),
+        out.update(held=True, ref=last_ok["commit"], use=shown(last_ok), drop=round(drop),
                    reason=f"{newest['entries']:,} entries and {newest['links']:,} links against {last_ok['entries']:,} and {last_ok['links']:,} "
                           f"in the last complete catalogue ({drop:.0f}% fewer entries)")
     return out
@@ -268,6 +268,8 @@ def cmd_summary(a) -> int:
         if vj.get(key) and f.exists():
             out.append(f"| {label} | {f.stat().st_size / 1e6:.2f} MB |")
     out.append(f"| index.html | {(site / 'index.html').stat().st_size / 1e6:.2f} MB |")
+    for f in sorted(site.glob("lang-*.js")):
+        out.append(f"| Spanish dictionary (fetched only by people who read Spanish) | {f.stat().st_size / 1e3:.0f} KB |")
     text = "\n".join(out) + "\n"
     print(text)
     summary(text)

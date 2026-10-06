@@ -9,7 +9,7 @@ function chartCard({ id, cls = '', title, sub = '', acts = '', body, twin }) {
   const showTwin = App.ui.twin.includes(id);
   return `<section class="card cv ${cls}" data-card="${esc(id)}">
     <div class="card-h"><div><h3>${esc(title)}</h3>${sub ? `<p>${esc(sub)}</p>` : ''}</div>
-      <div class="acts">${acts}${twin ? `<button class="btn sm ghost" data-act="twin" data-id="${esc(id)}" aria-pressed="${showTwin}" data-tip="Show the same numbers as a table">${icon('table', 14)}<span>Table</span></button>` : ''}</div></div>
+      <div class="acts">${acts}${twin ? `<button class="btn sm ghost" data-act="twin" data-id="${esc(id)}" aria-pressed="${showTwin}" data-tip="${esc(__('Show the same numbers as a table'))}">${icon('table', 14)}<span>${__('Table')}</span></button>` : ''}</div></div>
     <div class="viz"${showTwin ? ' hidden' : ''}>${body}</div>
     ${twin ? `<div class="twin"${showTwin ? '' : ' hidden'}>${twin}</div>` : ''}
   </section>`;
@@ -66,8 +66,8 @@ function colsHTML(items, { facet, selected, fmt = compact, tipFor } = {}) {
 }
 function meterHTML(label, a, b, note = '') {
   const p = b ? (100 * a) / b : 0;
-  return `<div class="meter"><div class="mh"><span>${esc(label)}</span><span><b class="num">${p.toFixed(p >= 10 ? 0 : 1)}%</b> <span class="muted num">${fmtN(a)} of ${fmtN(b)}</span></span></div>
-    <div class="mt" role="img" aria-label="${esc(label)} ${p.toFixed(1)} percent"><i style="width:${p.toFixed(2)}%"></i></div>${note ? `<div class="muted" style="font-size:12px">${esc(note)}</div>` : ''}</div>`;
+  return `<div class="meter"><div class="mh"><span>${esc(label)}</span><span><b class="num">${fmtD(p, p >= 10 ? 0 : 1)}%</b> <span class="muted num">${__('{a} of {b}', { a, b })}</span></span></div>
+    <div class="mt" role="img" aria-label="${esc(__('{label} {pct} percent', { label, pct: fmtD(p, 1) }))}"><i style="width:${p.toFixed(2)}%"></i></div>${note ? `<div class="muted" style="font-size:12px">${esc(note)}</div>` : ''}</div>`;
 }
 
 /** After insertion: remove segment labels that do not fit with padding (never clip text). */
@@ -110,7 +110,7 @@ function treemapHTML(groups, W, H, { selected, fmt = fmtN, tipFor }) {
   live.forEach(g => { g.value = g.children.reduce((s, c) => s + c.value, 0); });
   live.sort((a, b) => b.value - a.value);
   const total = live.reduce((s, g) => s + g.value, 0);
-  if (!total) return '<div class="vt-empty">Nothing in this slice.</div>';
+  if (!total) return `<div class="vt-empty">${__('Nothing in this slice.')}</div>`;
   live.forEach(g => { g.a = (g.value / total) * W * H; });
   let html = '';
   for (const R of squarify(live, 0, 0, W, H)) {
@@ -154,7 +154,7 @@ function mountLine(el, { series, bands = [], fmt = fmtN }) {
   const first = new Date(t0);
   for (let d = first.getDate() === 1 ? first : new Date(first.getFullYear(), first.getMonth() + 1, 1); d <= t1; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) if (d.getTime() >= t0) months.push(new Date(d));
   const xt = months.filter((_, i) => i % Math.ceil(months.length / Math.max(2, Math.floor((W - m.l - m.r) / 70))) === 0)
-    .map((d, k) => `<text x="${X(d.getTime())}" y="${H - 8}" text-anchor="middle" class="ax">${d.toLocaleString('en', { month: 'short' })}${d.getMonth() === 0 || k === 0 ? ' ' + d.getFullYear() : ''}</text>`).join('');
+    .map((d, k) => `<text x="${X(d.getTime())}" y="${H - 8}" text-anchor="middle" class="ax">${d.toLocaleString(Lang.locale, { month: 'short' })}${d.getMonth() === 0 || k === 0 ? ' ' + d.getFullYear() : ''}</text>`).join('');
   const bandSvg = bands.map(b => {
     const x0 = clamp(X(b.t0) - 6, m.l, W - m.r), x1 = clamp(X(b.t1) + 6, m.l, W - m.r);
     return `<rect x="${x0}" y="${m.t}" width="${Math.max(2, x1 - x0)}" height="${H - m.t - m.b}" class="band"/><text x="${x0 + 4}" y="${m.t + 12}" class="bandl">${esc(b.label)}</text>`;
@@ -164,7 +164,7 @@ function mountLine(el, { series, bands = [], fmt = fmtN }) {
     const p = s.points[s.points.length - 1];
     return `<circle cx="${X(p.t)}" cy="${Y(p.y)}" r="4" fill="${s.css}" stroke="var(--panel)" stroke-width="2"/><text x="${X(p.t) + 10}" y="${Y(p.y) + 4}" class="endl">${esc(s.label)} <tspan class="endv">${fmt(p.y)}</tspan></text>`;
   }).join('');
-  el.innerHTML = `<svg class="line" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(series.map(s => s.label).join(' and '))} across weekly snapshots">
+  el.innerHTML = `<svg class="line" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(__('{series} across weekly snapshots', { series: series.map(s => s.label).join(__(' and ')) }))}">
     ${grid.join('')}${xt}${bandSvg}${paths}${ends}<line class="xh" y1="${m.t}" y2="${H - m.b}" x1="0" x2="0" style="display:none"/><g class="hd"></g>
     <rect class="hit" x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent"/></svg>`;
   const svg = $('svg', el), xh = $('.xh', svg), hd = $('.hd', svg), hit = $('.hit', svg);
@@ -176,7 +176,7 @@ function mountLine(el, { series, bands = [], fmt = fmtN }) {
     const x = X(base[bi].t);
     xh.setAttribute('x1', x); xh.setAttribute('x2', x); xh.style.display = '';
     hd.innerHTML = series.map(s => { const p = s.points[bi]; return p ? `<circle cx="${x}" cy="${Y(p.y)}" r="4" fill="${s.css}" stroke="var(--panel)" stroke-width="2"/>` : ''; }).join('');
-    const node = tipBox(base[bi].tip.title, series.map(s => [s.label, s.points[bi] ? fmt(s.points[bi].y) : 'n/a', s.css]), base[bi].tip.foot);
+    const node = tipBox(base[bi].tip.title, series.map(s => [s.label, s.points[bi] ? fmt(s.points[bi].y) : __('n/a'), s.css]), base[bi].tip.foot);
     Tip.showAt(node, e.clientX, e.clientY);
   };
   const leave = () => { xh.style.display = 'none'; hd.innerHTML = ''; Tip.hide(); };

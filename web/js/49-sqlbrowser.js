@@ -1,5 +1,9 @@
 /* ============================================================ the SQL console in the browser: a worker running SQLite on a link-free copy of the catalogue */
 
+/** What the engine's worker says while it loads. The worker has no dictionary, so the page translates its words when it shows them. */
+const SQL_PHASES = [N_('Starting'), N_('Opening the copy saved in your browser'), N_('Starting SQLite'), N_('Downloading the database'), N_('Opening the database')];
+const liveError = msg => { const m = /^The database file answered (\d+)$/.exec(msg); return m ? __('The database file answered {status}', { status: m[1] }) : msg; };
+
 const Live = {
   cfg: window.ROMGI.sql || null,
   state: 'idle',               // idle | loading | ready | failed
@@ -22,27 +26,27 @@ const Live = {
         else if (m.type === 'failed' && m.id === undefined) reject(new Error(m.error));
         else if (m.id !== undefined) { const p = this.pending.get(m.id); if (p) { this.pending.delete(m.id); clearTimeout(p.timer); p.resolve(m); } }
       };
-      w.onerror = e => reject(new Error(e.message || 'The SQL engine could not start.'));
+      w.onerror = e => reject(new Error(e.message || __('The SQL engine could not start.')));
       w.postMessage({ type: 'open', db: this.abs(this.cfg.db), sqljs: this.abs(this.cfg.sqljs), bytes: this.cfg.bytes, gz: this.cfg.gz });
     });
     gate.catch(e => this.fail(e));
     return gate;
   },
-  fail(e) { this.stop(); this.state = 'failed'; this.error = e.message || String(e); this.paint(); },
+  fail(e) { this.stop(); this.state = 'failed'; this.error = liveError(e.message || String(e)); this.paint(); },
   stop() {
     if (this.worker) this.worker.terminate();
     this.worker = null; this.ready = null;
-    for (const p of this.pending.values()) { clearTimeout(p.timer); p.resolve({ error: 'The SQL engine was stopped.' }); }
+    for (const p of this.pending.values()) { clearTimeout(p.timer); p.resolve({ error: __('The SQL engine was stopped.') }); }
     this.pending.clear();
   },
   /** One request at a time reaches the worker; a query that outlives its time is stopped by stopping the worker. */
   ask(msg, ms) {
     return new Promise(resolve => {
-      if (!this.worker) return resolve({ error: 'The database is not loaded.' });
+      if (!this.worker) return resolve({ error: __('The database is not loaded.') });
       const id = ++this.seq;
       const timer = setTimeout(() => {
         this.pending.delete(id); this.stop(); this.state = 'idle';
-        resolve({ error: `The query ran for more than ${ms / 1000} seconds and was stopped. The database reopens from the copy saved in your browser on the next run.` });
+        resolve({ error: __('The query ran for more than {seconds} seconds and was stopped. The database reopens from the copy saved in your browser on the next run.', { seconds: ms / 1000 }) });
         App.sqlReady();
       }, ms);
       this.pending.set(id, { resolve, timer });
@@ -69,11 +73,11 @@ App.views.sql.paintLoad = function () {
   const out = $('#sql-out');
   if (!out || App.ui.view !== 'sql') return;
   if (Live.state === 'loading') {
-    const [got, total] = Live.progress || [0, 0], p = total ? Math.min(1, got / total) : 0, mb = x => (x / 1e6).toFixed(1);
-    out.innerHTML = `<div class="meter" style="margin:18px" role="status"><div class="mh"><span>${esc(Live.phase)}</span><span class="num">${total ? `${mb(got)} of ${mb(total)} MB` : ''}</span></div>
-      <div class="mt" role="progressbar" aria-label="Database download" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(p * 100)}"><i style="width:${(p * 100).toFixed(1)}%"></i></div></div>`;
+    const [got, total] = Live.progress || [0, 0], p = total ? Math.min(1, got / total) : 0, mb = x => fmtD(x / 1e6);
+    out.innerHTML = `<div class="meter" style="margin:18px" role="status"><div class="mh"><span>${esc(__(Live.phase))}</span><span class="num">${total ? __('{got} of {total} MB', { got: mb(got), total: mb(total) }) : ''}</span></div>
+      <div class="mt" role="progressbar" aria-label="${esc(__('Database download'))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(p * 100)}"><i style="width:${(p * 100).toFixed(1)}%"></i></div></div>`;
   } else if (Live.state === 'failed') out.innerHTML = sqlLoadFailedHTML();
 };
-const sqlLoadFailedHTML = () => `<div class="notice" style="margin:14px">${icon('alert', 16)}<div><b>The database could not be loaded.</b> ${esc(Live.error)} <button class="btn sm" data-act="sqlload" style="margin-left:6px">Try again</button></div></div>`;
-const sqlLoadNoticeHTML = () => `<div class="notice info" style="margin-top:12px">${icon('info', 16)}<div><b>Run SQL right here.</b> The first run downloads a copy of the catalogue (${fmtBytes(Live.cfg.gz)}) and opens it with SQLite in your browser. It is kept in your browser afterwards and nothing leaves your device. Download links are emptied in this copy; the local explorer has them. It needs about 400 MB of memory, so a desktop browser is best. <button class="btn sm primary" data-act="sqlload" style="margin-left:6px">Load the database</button></div></div>`;
+const sqlLoadFailedHTML = () => `<div class="notice" style="margin:14px">${icon('alert', 16)}<div><b>${__('The database could not be loaded.')}</b> ${esc(Live.error)} <button class="btn sm" data-act="sqlload" style="margin-left:6px">${__('Try again')}</button></div></div>`;
+const sqlLoadNoticeHTML = () => `<div class="notice info" style="margin-top:12px">${icon('info', 16)}<div>${__h('<b>Run SQL right here.</b> The first run downloads a copy of the catalogue ({size}) and opens it with SQLite in your browser. It is kept in your browser afterwards and nothing leaves your device. Download links are emptied in this copy; the local explorer has them. It needs about 400 MB of memory, so a desktop browser is best. {button}', { size: fmtBytes(Live.cfg.gz), button: raw(`<button class="btn sm primary" data-act="sqlload" style="margin-left:6px">${esc(__('Load the database'))}</button>`) })}</div></div>`;
 Object.assign(App.handlers, { sqlload() { Live.start().catch(() => {}); App.renderView(); } });   // the redraw swaps the notice for the progress bar

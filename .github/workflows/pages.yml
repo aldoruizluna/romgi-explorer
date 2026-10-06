@@ -94,6 +94,9 @@ jobs:
       - name: Check that links round-trip (every filter value, random slices, odd names)
         run: node tests/url.test.js dist/dataset.snapshot.json.gz
 
+      - name: Check the Spanish dictionary (every message translated, nothing lost, nothing unused)
+        run: node tests/i18n.test.js dist/dataset.snapshot.json.gz
+
       - name: Check the guards and the explorer's handling of a source it has not seen
         run: |
           python3 tests/make_fixture.py data/romdb.db dist/fixture/romdb.db --extra-source
@@ -128,6 +131,13 @@ jobs:
         run: |
           npm install --no-save --no-audit --no-fund playwright-core@1.49.1
           node tests/smoke.test.js site
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+
+      - name: Read the page in Spanish in a real browser (no English left, the switch, the single-file build)
+        run: |
+          python3 bundle.py --dataset dist/dataset.snapshot.json.gz
+          node tests/lang.test.js site dist/romgi-explorer.standalone.html
         env:
           CHROME_PATH: /usr/bin/google-chrome
 

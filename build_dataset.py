@@ -31,7 +31,7 @@ from urllib.parse import urlparse
 from drift import MAX_SOURCES, check_catalogue
 
 HERE = Path(__file__).resolve().parent
-BUILD_VERSION = 11   # bump when the dataset format changes; serve.py keys its cache on it
+BUILD_VERSION = 12   # bump when the dataset format changes; serve.py keys its cache on it
 
 # The sources romgi has had so far. Their order is their colour slot (never their rank), so a source keeps its colour. A source that
 # romgi adds later is appended after these and takes the next free slot; beyond SOURCE_SLOTS they share the neutral last slot.
@@ -554,19 +554,17 @@ def profile_column(con, table, col, ctype, rows, sensitive):
 
 # ---------------------------------------------------------------------- quality
 def build_quality(cur, scalar, meta, vj, history, flag_counts, n_moji, nE, nL, slug_x):
+    """The numbers behind each check. The sentences that describe them are the page's (web/js/46-quality.js, keyed by id), so they can
+    be written in any language: what varies from build to build travels as `vars`."""
     out = []
 
-    def add(id, sev, title, summary, count=None, total=None, preset=None, sql=None, action=None, evidence=None):
-        out.append({"id": id, "sev": sev, "title": title, "summary": summary, "count": count, "total": total,
-                    "preset": preset, "sql": sql, "action": action, "evidence": evidence})
+    def add(id, sev, count=None, total=None, preset=None, sql=None, action=None, evidence=None, **vars):
+        out.append({"id": id, "sev": sev, "count": count, "total": total, "preset": preset, "sql": sql, "action": action,
+                    "evidence": evidence, "vars": vars})
 
     # 1. mojibake
     ex = cur.execute("SELECT title FROM entries WHERE title GLOB '*â*' AND platform='ps3' LIMIT 1").fetchone()
-    add("moji", "serious", "Titles with scrambled characters",
-        "UTF-8 text was decoded as Latin-1 before it was stored, so “Us™” became “Usâ\u0084¢” and Japanese titles "
-        "turned into noise. Every affected entry is a PlayStation 3 or Vita title from NoPayStation. Re-encoding the "
-        "title as Latin-1 and decoding it as UTF-8 restores it; the drawer shows that repair.",
-        n_moji, nE, {"grain": "entries", "flag": ["moji"]},
+    add("moji", "serious", n_moji, nE, {"grain": "entries", "flag": ["moji"]},
         sql="-- No exact SQL: the test is a Latin-1 round trip done at build time.\nSELECT COUNT(*) FROM entries WHERE platform IN ('ps3','psv') AND title GLOB '*[ÃÂãâ]*';",
         evidence=ex[0] if ex else None)
 
@@ -575,38 +573,25 @@ def build_quality(cur, scalar, meta, vj, history, flag_counts, n_moji, nE, nL, s
     n_tib = scalar(f"SELECT COUNT(*) FROM links WHERE size >= {TiB}")
     by_src = dict(cur.execute(f"SELECT l.source_id, COUNT(*) FROM links l WHERE {SUSPECT_SQL} GROUP BY 1").fetchall())
     sigs = [s for s, _ in cur.execute(f"SELECT l.size_str, COUNT(*) c FROM links l WHERE {SUSPECT_SQL} GROUP BY 1 ORDER BY c DESC LIMIT 4")]
-    add("sizes", "serious", "File sizes that no real copy could have",
-        f"{n_susp:,} links claim a size the platform could not hold: {n_tib:,} are a terabyte or more, and {n_susp - n_tib:,} are bigger than the medium "
-        "allows (a cartridge game over 700 MiB, a CD over 2 GiB, a DVD-era disc over 12 GiB). Their size_str values are round numbers such as "
-        f"{', '.join(sigs)}, which look like a pattern match on the page row rather than a file size: the archived scraper took the first number "
-        "followed by K, M, G or T. The explorer tags them Suspect and keeps them out of every size total. The capacity rule is applied to Internet Archive "
-        "only; the other sources read sizes from torrent metadata or structured listings, and their largest files are real (Wii and 3DS digital dumps of 13 to 34 GiB).",
-        n_susp, nL, {"grain": "links", "sz": [6]},
+    add("sizes", "serious", n_susp, nL, {"grain": "links", "sz": [6]},
         sql=f"SELECT l.source_id, l.size_str, COUNT(*) AS links\nFROM links l WHERE {SUSPECT_SQL}\nGROUP BY 1, 2 ORDER BY links DESC LIMIT 25;",
-        evidence=json.dumps(by_src))
+        evidence=json.dumps(by_src), tib=n_tib, over=n_susp - n_tib, sigs=sigs)
 
     # 3. zero-size links
     n_zero = scalar("SELECT COUNT(*) FROM links WHERE size IS NULL OR size = 0")
-    add("zero", "warn", "Links with no size", "These are mostly NoPayStation licence keys and a few archive items. The sizes are 0 or missing.",
-        n_zero, nL, {"grain": "links", "sz": [0]}, sql="SELECT source_id, type, COUNT(*) FROM links WHERE size IS NULL OR size = 0 GROUP BY 1, 2;")
+    add("zero", "warn", n_zero, nL, {"grain": "links", "sz": [0]}, sql="SELECT source_id, type, COUNT(*) FROM links WHERE size IS NULL OR size = 0 GROUP BY 1, 2;")
 
     # 4. torrent table
     nt = scalar("SELECT COUNT(*) FROM torrents")
     blobs = scalar("SELECT COUNT(torrent_blob) FROM torrents")
     sized = scalar("SELECT COUNT(total_size) FROM torrents")
     emptytr = scalar("SELECT COUNT(*) FROM torrents WHERE trackers_json = '[]' OR trackers_json IS NULL")
-    add("torrents", "warn", "Torrent table carries almost nothing",
-        f"{nt} packs, but {blobs} .torrent files, {sized} sizes and {nt - emptytr} tracker lists. Each row is only an infohash, a name and a "
-        "magnet. The app has to resolve everything else from the swarm.",
-        nt, nt, None, sql="SELECT COUNT(torrent_blob), COUNT(total_size), COUNT(piece_length), COUNT(file_count) FROM torrents;",
-        action={"view": "schema", "table": "torrents"})
+    add("torrents", "warn", nt, nt, None, sql="SELECT COUNT(torrent_blob), COUNT(total_size), COUNT(piece_length), COUNT(file_count) FROM torrents;",
+        action={"view": "schema", "table": "torrents"}, blobs=blobs, sized=sized, lists=nt - emptytr)
 
     # 5. requires_auth
     n_auth = scalar("SELECT COUNT(*) FROM links WHERE requires_auth = 1")
-    add("auth", "warn", "No link is marked as login-only",
-        f"{n_auth:,} of {nL:,} links have requires_auth = 1, although the Internet Archive manifest says some of its items need "
-        "an account. The app's Login Required badge can only fire from this flag.",
-        n_auth, nL, None, sql="SELECT source_id, SUM(requires_auth) FROM links GROUP BY 1;")
+    add("auth", "warn", n_auth, nL, None, sql="SELECT source_id, SUM(requires_auth) FROM links GROUP BY 1;")
 
     # 6. history dips
     runs = []
@@ -620,42 +605,27 @@ def build_quality(cur, scalar, meta, vj, history, flag_counts, n_moji, nE, nL, s
                 runs.append({"start": h["date"][:10], "end": h["date"][:10], "start_i": i, "end_i": i,
                              "min": h["entries"], "base": base, "n": 1})
     if runs:
-        parts = "; ".join(f"{r['start']} to {r['end']} ({r['n']} snapshot{'s' if r['n'] > 1 else ''}, {r['min']:,} entries against {r['base']:,} before)"
-                          for r in runs)
-        add("dips", "serious", "Weekly snapshots that shipped far fewer entries",
-            "The app downloads whatever is published on main, so these weeks users received a catalogue missing roughly "
-            f"a third to two fifths of its entries: {parts}.",
-            len(runs), len(history), None, action={"view": "sources", "anchor": "history"},
-            evidence=json.dumps(runs))
+        add("dips", "serious", len(runs), len(history), None, action={"view": "sources", "anchor": "history"}, evidence=json.dumps(runs))
 
     # title hygiene
     n_pad = scalar("SELECT COUNT(*) FROM entries WHERE title <> trim(title)")
     n_empty = scalar("SELECT COUNT(*) FROM entries WHERE title = ''")
-    add("titles", "warn", "Titles with stray spaces, or none at all",
-        f"{n_pad:,} titles start or end with a space (almost all PlayStation 3 and Vita content from NoPayStation) and {n_empty} has no title text. "
-        "They sort to the top of any plain ORDER BY title, so the explorer trims them for display and sorting.",
-        n_pad + n_empty, nE, {"grain": "entries", "flag": ["padded", "empty"]},
-        sql="SELECT slug, platform, '[' || title || ']' AS title FROM entries WHERE title <> trim(title) OR title = '' LIMIT 50;")
+    add("titles", "warn", n_pad + n_empty, nE, {"grain": "entries", "flag": ["padded", "empty"]},
+        sql="SELECT slug, platform, '[' || title || ']' AS title FROM entries WHERE title <> trim(title) OR title = '' LIMIT 50;", padded=n_pad, empty=n_empty)
 
     # 7-9. coverage gaps
     n_noreg = scalar("SELECT COUNT(*) FROM entries e WHERE NOT EXISTS (SELECT 1 FROM regions_entries r WHERE r.entry = e.slug)")
-    add("noreg", "info", "Entries without a region", "No row in regions_entries, so region filters never match them.",
-        n_noreg, nE, {"grain": "entries", "reg": [4]},
+    add("noreg", "info", n_noreg, nE, {"grain": "entries", "reg": [4]},
         sql="SELECT COUNT(*) FROM entries e WHERE NOT EXISTS (SELECT 1 FROM regions_entries r WHERE r.entry = e.slug);")
     n_noser = scalar("SELECT COUNT(*) FROM entries WHERE COALESCE(rom_id, '') = ''")
-    add("noser", "info", "Entries without a serial", "rom_id is empty. Arcade sets and most Super Nintendo titles have none.",
-        n_noser, nE, {"grain": "entries", "ser": [0]}, sql="SELECT COUNT(*) FROM entries WHERE COALESCE(rom_id, '') = '';")
+    add("noser", "info", n_noser, nE, {"grain": "entries", "ser": [0]}, sql="SELECT COUNT(*) FROM entries WHERE COALESCE(rom_id, '') = '';")
     n_noart = scalar("SELECT COUNT(*) FROM entries WHERE COALESCE(boxart_url, '') = ''")
-    add("noart", "info", "Entries without box art", "No GameTDB or libretro thumbnail was matched.",
-        n_noart, nE, {"grain": "entries", "art": [0]}, sql="SELECT COUNT(*) FROM entries WHERE COALESCE(boxart_url, '') = '';")
+    add("noart", "info", n_noart, nE, {"grain": "entries", "art": [0]}, sql="SELECT COUNT(*) FROM entries WHERE COALESCE(boxart_url, '') = '';")
 
     # 10. duplicate titles
     dup = scalar("SELECT COUNT(*) FROM (SELECT 1 FROM entries GROUP BY platform, title HAVING COUNT(*) > 1) ")
     dup_rows = scalar("SELECT SUM(c) FROM (SELECT COUNT(*) c FROM entries GROUP BY platform, title HAVING COUNT(*) > 1)") or 0      # SUM of nothing is NULL
-    add("dups", "info", "Same title, several entries",
-        f"{dup:,} platform and title pairs appear more than once ({dup_rows:,} rows). They are regional or revision variants with "
-        "different slugs, so counting entries is not counting games.",
-        dup_rows, nE, None, sql="SELECT platform, title, COUNT(*) FROM entries GROUP BY 1, 2 HAVING COUNT(*) > 1 ORDER BY 3 DESC LIMIT 50;")
+    add("dups", "info", dup_rows, nE, None, sql="SELECT platform, title, COUNT(*) FROM entries GROUP BY 1, 2 HAVING COUNT(*) > 1 ORDER BY 3 DESC LIMIT 50;", pairs=dup)
 
     # 11. integrity
     checks = {
@@ -669,19 +639,13 @@ def build_quality(cur, scalar, meta, vj, history, flag_counts, n_moji, nE, nL, s
     }
     res = {k: scalar(v) for k, v in checks.items()}
     bad = {k: v for k, v in res.items() if v}
-    add("fk", "serious" if bad else "ok", "Foreign keys and counts line up" if not bad else "Broken references",
-        "Checked: " + ", ".join(f"{k} ({v})" for k, v in res.items()) + ".", sum(res.values()), None, None,
-        sql="\n".join(v + ";" for v in checks.values()))
+    add("fk", "serious" if bad else "ok", sum(res.values()), None, None, sql="\n".join(v + ";" for v in checks.values()), checked=[[k, v] for k, v in res.items()])
 
     # 12. quick_check and FTS parity
     qc = scalar("PRAGMA quick_check")
-    add("quick", "ok" if qc == "ok" else "critical", "SQLite quick_check", f"PRAGMA quick_check returned “{qc}”.", None, None, None,
-        sql="PRAGMA quick_check;")
+    add("quick", "ok" if qc == "ok" else "critical", sql="PRAGMA quick_check;", result=qc)
     fts_docs = scalar("SELECT COUNT(*) FROM entries_fts_docsize")
-    add("fts", "ok" if fts_docs == nE else "warn", "Full-text index matches the entries table",
-        f"entries_fts holds {fts_docs:,} documents for {nE:,} entries. It indexes search_key, the title squashed with no spaces, "
-        "so only one-word prefix queries such as MATCH 'supermario*' work, and the app searches with LIKE instead.",
-        fts_docs, nE, None, sql="SELECT COUNT(*) FROM entries_fts WHERE entries_fts MATCH 'supermario*';")
+    add("fts", "ok" if fts_docs == nE else "warn", fts_docs, nE, None, sql="SELECT COUNT(*) FROM entries_fts WHERE entries_fts MATCH 'supermario*';")
 
     # 13. version.json vs the database
     if vj:
@@ -691,15 +655,11 @@ def build_quality(cur, scalar, meta, vj, history, flag_counts, n_moji, nE, nL, s
                  ("sources", vj.get("sources"), scalar("SELECT COUNT(*) FROM sources")),
                  ("retroachievements", vj.get("retroachievements"), ra_n),
                  ("uncompressed_size", vj.get("uncompressed_size"), meta["db_bytes"])]
-        diffs = [f"{k}: manifest {a:,} vs database {b:,}" for k, a, b in pairs if a is not None and a != b]
-        add("version", "warn" if diffs else "ok", "version.json agrees with the database",
-            "; ".join(diffs) if diffs else "Entries, links, platforms, sources, RetroAchievements games and byte size all match the manifest.",
-            len(diffs), len(pairs), None)
+        diffs = [[k, a, b] for k, a, b in pairs if a is not None and a != b]
+        add("version", "warn" if diffs else "ok", len(diffs), len(pairs), None, diffs=diffs)
 
     # 14. slugs
-    add("slugs", "info", "Slugs that are not title + platform + region",
-        f"{len(slug_x):,} slugs cannot be rebuilt from the title, mostly the scrambled ones above. The explorer stores those verbatim.",
-        len(slug_x), nE, None)
+    add("slugs", "info", len(slug_x), nE, None)
     return out
 
 

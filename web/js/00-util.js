@@ -4,30 +4,25 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ESC[c]);
-const NF = new Intl.NumberFormat('en-US');
+let NF = new Intl.NumberFormat('en-US');          // Lang.use() swaps these for the visitor's locale
+let FD = {}, CF = null, PF = {};                    // decimals by digit count, compact form, percentages
 const fmtN = n => NF.format(Math.round(n));
-const compact = n => {
-  const a = Math.abs(n);
-  if (a >= 1e9) return (n / 1e9).toFixed(a >= 1e10 ? 0 : 1).replace(/\.0$/, '') + 'B';
-  if (a >= 1e6) return (n / 1e6).toFixed(a >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
-  if (a >= 1e4) return Math.round(n / 1e3) + 'K';
-  if (a >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
-  return String(Math.round(n * 10) / 10);
-};
+/** n with exactly d decimals, written the way the locale writes them (a comma in Spain, a point in Mexico). Values meant for CSS keep toFixed. */
+const fmtD = (n, d = 1) => (FD[d] || (FD[d] = new Intl.NumberFormat(Lang.locale, { minimumFractionDigits: d, maximumFractionDigits: d }))).format(n);
+const compact = n => (CF || (CF = new Intl.NumberFormat(Lang.locale, { notation: 'compact', maximumFractionDigits: 1 }))).format(n);
 const UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
 const popcount = m => { let n = 0; while (m) { n += m & 1; m >>= 1; } return n; };
 const fmtBytes = (n, d = 1) => {
   if (!n) return '0 B';
   let i = 0;
   while (n >= 1024 && i < UNITS.length - 1) { n /= 1024; i++; }
-  return (i === 0 ? String(Math.round(n)) : n.toFixed(n >= 100 ? 0 : d)) + ' ' + UNITS[i];
+  return (i === 0 ? String(Math.round(n)) : fmtD(n, n >= 100 ? 0 : d)) + ' ' + UNITS[i];
 };
-const pct = (a, b, d = 1) => (b ? ((100 * a) / b).toFixed(d) + '%' : '0%');
+const pct = (a, b, d = 1) => (PF[d] || (PF[d] = new Intl.NumberFormat(Lang.locale, { style: 'percent', minimumFractionDigits: d, maximumFractionDigits: d }))).format(b ? a / b : 0);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 const raf = fn => requestAnimationFrame(fn);
 const asciiLower = s => s.replace(/[A-Z]+/g, m => m.toLowerCase());
-const plural = (n, one, many) => `${fmtN(n)} ${n === 1 ? one : many || one + 's'}`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 /** Let the browser paint and answer input before the next slice of work. */
 const yieldToMain = () => (typeof scheduler !== 'undefined' && scheduler.yield ? scheduler.yield() : new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => { c.port1.close(); r(); }; c.port2.postMessage(0); }));
@@ -160,12 +155,12 @@ function toast(msg) {
   const el = $('#toast'); el.textContent = msg; el.classList.add('on');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), 1900);
 }
-async function copyText(text, note = 'Copied') {
+async function copyText(text, note = __('Copied')) {
   try { await navigator.clipboard.writeText(text); toast(note); return true; }
   catch {
     const ta = h('textarea', { style: { position: 'fixed', opacity: 0, left: '-999px' } }); ta.value = text; document.body.append(ta); ta.select();
     let ok = false; try { ok = document.execCommand('copy'); } catch { ok = false; }
-    ta.remove(); toast(ok ? note : 'Select the text and copy it with Cmd/Ctrl+C'); return ok;
+    ta.remove(); toast(ok ? note : __('Select the text and copy it with Cmd/Ctrl+C')); return ok;
   }
 }
 function downloadText(name, text, type = 'text/csv') {

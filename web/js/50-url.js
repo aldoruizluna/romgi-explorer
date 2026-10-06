@@ -119,7 +119,7 @@ const Url = {
       const bad = this.enabled ? this.apply(p) : 0;
       if (!p.card && App.sel != null) { Drawer.close({ quiet: true }); this.pushedCard = false; }
       App.ui.view = p.view; App.saveUI();
-      if (bad) toast(`${bad === 1 ? 'One part' : bad + ' parts'} of that link ${bad === 1 ? 'is' : 'are'} not in this catalogue.`);
+      if (bad) toast(__n(bad, 'One part of that link is not in this catalogue.|{n} parts of that link are not in this catalogue.'));
       $('#q').value = App.S.state.q || (this.pending && this.pending.q) || '';
       App.S.changed();                                   // counts again and schedules the redraw
       if (p.card && App.D.detailReady) this.openPendingCard();
@@ -144,7 +144,7 @@ const Url = {
       if (D.slugOf(i) === slug) hit = i;
       if ((i & 0x3FFF) === 0x3FFF) await yieldToMain();
     }
-    if (hit < 0) { toast('That entry is not in this catalogue any more.'); this.sync(false); return; }
+    if (hit < 0) { toast(__('That entry is not in this catalogue any more.')); this.sync(false); return; }
     Drawer.open(hit, { quiet: true });
   },
 };

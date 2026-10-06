@@ -16,7 +16,7 @@ const { DatabaseSync } = require('node:sqlite');
 const [, , dbPath, dsPath] = process.argv;
 if (!dsPath) { console.error('usage: node tests/sources.test.js <romdb.db> <dataset.json.gz>'); process.exit(2); }
 const jsDir = path.join(__dirname, '..', 'web', 'js');
-const code = ['00-util.js', '10-data.js', '20-engine.js', '48-collections.js'].map(f => fs.readFileSync(path.join(jsDir, f), 'utf8')).join('\n');
+const code = ['00-util.js', '01-i18n.js', '10-data.js', '20-engine.js', '48-collections.js'].map(f => fs.readFileSync(path.join(jsDir, f), 'utf8')).join('\n');
 const ctx = vm.createContext({ window: { ROMGI: { mode: 'test' } }, App: { handlers: {} }, console, performance, TextDecoder, setTimeout, Intl,
   Uint8Array, Uint16Array, Uint32Array, Int16Array, Int32Array, Float64Array });
 const api = vm.runInContext(code + '\n({ prepare, Slicer, COLLECTIONS, resolvePreset, popcount })', ctx);
