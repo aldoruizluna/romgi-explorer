@@ -69,7 +69,7 @@ if (typeof importScripts === 'function') {
     importScripts(m.sqljs + 'sql-wasm.js');
     const SQL = await initSqlJs({ locateFile: f => m.sqljs + f });
     const r = await fetchDb(m.db);
-    const total = +r.headers.get('content-length') || m.gz;
+    const total = m.gz;            // the file's own size; a CDN may re-compress in transit, which would make Content-Length smaller than what we read
     let got = 0, used = 0, buf = new Uint8Array(m.bytes + (1 << 20));
     const meter = new TransformStream({ transform(chunk, ctl) { got += chunk.length; post({ type: 'progress', got, total }); ctl.enqueue(chunk); } });
     const reader = r.body.pipeThrough(meter).pipeThrough(new DecompressionStream('gzip')).getReader();

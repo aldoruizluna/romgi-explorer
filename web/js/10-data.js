@@ -25,7 +25,7 @@ async function loadDataset(onPhase) {
 async function fetchDataset(url, onPhase) {
   const r = await fetch(url);
   if (!r.ok) throw new Error('The catalogue file answered ' + r.status);
-  const total = +r.headers.get('content-length') || 0;
+  const total = window.ROMGI.dataBytes || +r.headers.get('content-length') || 0;   // the file's own size; a CDN may re-compress in transit
   let got = 0;
   Loader.progress(0, total);
   const meter = new TransformStream({ transform(chunk, ctl) { got += chunk.length; Loader.progress(got, total); ctl.enqueue(chunk); } });

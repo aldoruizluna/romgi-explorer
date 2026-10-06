@@ -1,18 +1,19 @@
 # romgi catalogue explorer
 
-**Live: https://aldoruizluna.github.io/romgi-explorer/**
+**Live: https://aldoruizluna.github.io/romgi-explorer/** · MIT · rebuilt by itself when romgi publishes
+
+![The overview: hand-picked collections, a daily shelf of covers, and the catalogue at a glance](docs/img/overview.jpg)
 
 A browser UI for the database behind [caprado/romgi](https://github.com/caprado/romgi) (`db/romdb.db.gz`): every entry, every link,
-and the metadata around them, sliceable and pivotable.
+and the metadata around them, sliceable and pivotable, with box art and a SQL console.
 
-Two ways to use it:
-
-| | Local explorer | Hosted snapshot (the live site) |
+| | Local explorer | Live site |
 |---|---|---|
-| Data | your `romdb.db`, live | the latest weekly catalogue, rebuilt every Monday |
+| Data | your `romdb.db`, live | the latest weekly catalogue, rebuilt within hours of romgi publishing it |
 | Box art | yes | yes, loaded from libretro and GameTDB while you look |
-| SQL console, file names, URLs, torrent paths, CSV of a whole slice | yes | no |
-| Needs | Python 3.9+ (standard library only) | a browser |
+| SQL console | on the real database, file names and URLs included | in your browser, on a copy with the download links emptied (about 40 MB, downloaded the first time you run a query) |
+| File names, URLs, torrent paths, CSV of a whole slice | yes | no |
+| Needs | Python 3.9+ (standard library only) | a browser (a desktop one for the SQL console) |
 
 ## Run it locally
 
@@ -35,17 +36,53 @@ It listens on `127.0.0.1` only and opens the database read-only.
 - **Dice** pivot any two dimensions (platform by source, brand by region, flags by brand, ...), as raw values, shares, or versus expected.
 - **Browse** virtual table over 241k entries or 400k links, a box-art gallery (most achievements first, or A to Z, most sources, largest),
   and a catalogue-card drawer for every entry.
-- **Sources** health, which combinations of sources offer each entry, torrent packs, and the catalogue size over 42 weekly snapshots.
+- **Sources** health, which combinations of sources offer each entry, torrent packs, and the catalogue size over the weekly snapshots.
 - **Schema** ER diagram, DDL, a profile of every column, and where the bytes go.
 - **Quality** 16 checks, each backed by a query. Findings in the 2026-10-04 snapshot include 6,638 titles with scrambled
-  characters, 4,673 Internet Archive sizes no real copy could have (a Mega Drive game of 20 GiB, a Saturn disc of 28 GiB), two weeks where the published catalogue lost about 40% of its entries,
-  and a torrent table with no sizes or files.
-- **SQL** (local only) a read-only console with examples and a schema browser.
+  characters, 4,673 Internet Archive sizes no real copy could have (a Mega Drive game of 20 GiB, a Saturn disc of 28 GiB), two weeks where
+  the published catalogue lost about 40% of its entries, and a torrent table with no sizes or files.
+- **SQL** a read-only console with examples and a schema browser. Every view that prints a query has an "Open in SQL" button.
 
 Everything on the left narrows entries and links together. The count beside each value is what you would get by adding it.
 Alt-click excludes a value. The "SQL" button above the tabs prints the query that reproduces the current slice.
 
 Shortcuts: `/` search, `R` roll a random entry, `G` then `O D B S M Q L` to jump between views, `T` theme, `?` help.
+
+| | |
+|---|---|
+| ![Gallery of covers from a collection](docs/img/gallery.jpg) | ![An entry's catalogue card](docs/img/drawer.jpg) |
+| ![The pivot](docs/img/dice.jpg) | ![The SQL console](docs/img/sql.jpg) |
+| ![Catalogue size over the weekly snapshots](docs/img/sources.jpg) | ![Data-quality findings](docs/img/quality.jpg) |
+
+<p align="center"><img src="docs/img/mobile.jpg" alt="On a phone: the collections swipe sideways, covers sit in two columns" width="300"></p>
+
+## The live site
+
+[`pages.yml`](.github/workflows/pages.yml) runs on every push to `main` and every three hours. The scheduled run compares romgi's
+`version.json` with the one the site ships and rebuilds only when romgi has published something new, so the site follows romgi within
+hours and costs nothing in between. A rebuild downloads the published catalogue, adds any new snapshots to the history chart (and commits
+them to `data/history.json`), builds the dataset, checks it against SQL, and deploys:
+
+- a small `index.html` that paints at once with the headline numbers;
+- the catalogue as its own gzip file that streams in with a progress bar and is parsed while it downloads;
+- the box-art paths as a second file, loaded after the page is usable;
+- a link-free copy of the database (`livedb.py`) and [sql.js](https://github.com/sql-js/sql.js) (checked against a pinned hash), which
+  the SQL console downloads only when someone runs a query, and then keeps in the browser.
+
+A run that fails any step leaves the previous site up. The catalogue itself is never committed; it is fetched fresh each time. Fonts are
+served from the site, so the only third-party requests are the cover images, and only for covers that are on screen. A dot beside the
+version says whether the page matches romgi's latest catalogue.
+
+The page carries `noindex`, so search engines are asked to skip it, but anyone with the link can open it. GitHub disables scheduled
+workflows in a public repository after 60 days without repository activity. The commits the workflow makes when romgi publishes
+should count as activity; if the schedule is ever disabled, re-enable it from the Actions tab. To build the same site yourself:
+
+```bash
+python3 build_dataset.py --db data/romdb.db --version-json data/version.json --out dist/dataset.snapshot.json.gz --art-out dist/art.snapshot.json.gz
+python3 livedb.py data/romdb.db dist/livedb.sqlite.gz --gzip
+python3 bundle.py --dataset dist/dataset.snapshot.json.gz --art dist/art.snapshot.json.gz --live-db dist/livedb.sqlite.gz --pages --out-dir site
+python3 -m http.server --directory site 8790                                          # then open http://localhost:8790
+```
 
 ## Files
 
@@ -53,33 +90,18 @@ Shortcuts: `/` search, `R` roll a random entry, `G` then `O D B S M Q L` to jump
 run.sh              one-command launcher: download the catalogue, build, serve
 serve.py            local server: dataset, per-entry rows, guarded SQL endpoint
 build_dataset.py    romdb.db -> compact columnar dataset (+ schema, profiles, quality checks)
-bundle.py           builds the self-contained hosted version into dist/ (or one index.html with --pages)
+livedb.py           romdb.db -> the link-free copy the hosted SQL console runs on
+vendor_sqljs.py     fetches sql.js for the hosted site, verified against a pinned hash
+bundle.py           builds the hosted site (--pages) or the single-file versions into dist/
 compose.py          assembles the page from web/
 refresh_history.py  adds the weekly snapshots published since data/history.json was written
-web/                index.html, css/, js/ (util, data, engine, charts, views, collections), fonts/ (self-hosted, OFL)
+web/                index.html, css/, js/ (util, data, engine, charts, views, collections, SQL in the browser),
+                    worker/ (the SQL engine), fonts/ (self-hosted, OFL), og/ (the link-preview card)
 data/history.json   weekly snapshot sizes, extracted from the romgi git history
-tests/              dataset-vs-SQL parity, a random-slice property test of the engine, and the hosted file's transport
+docs/img/           the screenshots above
+tests/              dataset-vs-SQL parity, a random-slice property test of the engine, the hosted file's transport,
+                    the link-free copy, and the browser SQL engine
 .github/workflows/  pages.yml: the build that publishes the live site
-```
-
-## The live site
-
-[`pages.yml`](.github/workflows/pages.yml) publishes it to GitHub Pages on every push to `main` and every Monday morning (UTC), shortly
-after romgi's Sunday catalogue. Each run downloads the published catalogue, adds any new snapshots to the history chart, builds the
-dataset, checks it against SQL (`tests/test_dataset.py`, and a short run of `tests/engine.test.js`), and deploys a small `index.html`
-(the loader paints at once with the headline numbers), the catalogue as its own gzip file that streams in with a progress bar, and the
-box-art paths as a second file loaded after the page is usable. A run that fails any step leaves the previous site up. The catalogue
-itself is never committed; it is fetched fresh each time. Fonts are served from the site, so the only third-party requests are the
-cover images, and only for covers that are on screen.
-
-The page carries `noindex`, so search engines are asked to skip it, but anyone with the link can open it. GitHub disables scheduled
-workflows in a public repository after 60 days without repository activity; re-enable it from the Actions tab. A run can also be
-started by hand from the Actions tab. To build the same page yourself:
-
-```bash
-python3 build_dataset.py --db data/romdb.db --version-json data/version.json --out dist/dataset.snapshot.json.gz --art-out dist/art.snapshot.json.gz
-python3 bundle.py --dataset dist/dataset.snapshot.json.gz --art dist/art.snapshot.json.gz --pages --out-dir site
-python3 -m http.server --directory site 8790                                          # then open http://localhost:8790
 ```
 
 ## Tests
@@ -88,23 +110,33 @@ python3 -m http.server --directory site 8790                                    
 python3 build_dataset.py --db data/romdb.db --out dist/dataset.snapshot.json.gz
 python3 tests/test_dataset.py data/romdb.db dist/dataset.snapshot.json.gz
 node tests/engine.test.js data/romdb.db dist/dataset.snapshot.json.gz 40
-node tests/transport.test.js site/catalogue.*.bin dist/dataset.snapshot.json.gz       # after bundle.py --pages
+python3 livedb.py data/romdb.db dist/livedb.sqlite.gz --gzip && python3 tests/test_livedb.py data/romdb.db dist/livedb.sqlite.gz
+# after bundle.py --pages --live-db:
+node tests/transport.test.js site/catalogue.*.bin dist/dataset.snapshot.json.gz
+node tests/sqlconsole.test.js dist/livedb.sqlite.gz site/vendor/sqljs dist/dataset.snapshot.json.gz
 ```
 
 The first checks every flag, size class, region, source, pack and format count against SQL, and that the table is stored in the order
 the printed SQL sorts by. The second draws random slices, filters and cross-tabs through the browser engine and compares each result with
-the SQL the UI prints, then does the same for every hand-picked collection. The third unpacks the hosted catalogue file the way the page
-does and checks it equals the dataset it was made from.
+the SQL the UI prints, compares the one-dimension fast paths with the general path, then does the same for every hand-picked collection.
+The third checks that the link-free copy is the original minus only the download locators. The fourth unpacks the hosted catalogue file
+the way the page does and checks it equals the dataset it was made from. The fifth runs the browser's SQL engine: what may run, that
+writes fail, CSV quoting, and every example the console offers.
 
 ## License
 
 The explorer's code is [MIT](LICENSE). The catalogue it reads belongs to romgi and the sources it indexes; the license covers this
-repository's code only.
+repository's code only. The live site also ships [sql.js](https://github.com/sql-js/sql.js) (MIT, its license is in `vendor/sqljs/`) and
+the typefaces Instrument Sans, JetBrains Mono and Pixelify Sans (SIL Open Font License, texts in `fonts/`).
 
 ## Notes
 
 The catalogue is distributed by romgi for use in romgi; its README says forks and derivative tools are not supported. The local
 explorer reads a copy you download yourself. The live site carries the catalogue's titles, platforms, sizes, source names and the
-paths of box-art images, and leaves out download URLs, file names, per-file torrent paths, magnets and infohashes; torrent packs appear
-by name only. Box art is fetched by your browser from thumbnails.libretro.com and art.gametdb.com; GameTDB is sometimes slow or
-unreachable, in which case the card keeps its platform placeholder.
+paths of box-art images, and leaves out download URLs, file names, per-file torrent paths, magnets and infohashes (torrent packs
+appear by name, and the SQL copy numbers them pack-001, pack-002, ...). Box art is fetched by your browser from
+thumbnails.libretro.com and art.gametdb.com; GameTDB is sometimes slow or unreachable, in which case the card keeps its platform
+placeholder.
+
+The link-preview card (`web/og/og.png`) is rendered from `web/og/card.html`: open it in a browser at 1200 x 630 and take a screenshot.
+GitHub's own social preview for the repository can only be set by uploading an image in the repository's settings.

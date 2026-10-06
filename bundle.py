@@ -106,7 +106,7 @@ def main():
             (out / "sql-worker.js").write_bytes((HERE / "web" / "worker" / "sql-worker.js").read_bytes())
             fetch_sqljs(str(out / "vendor" / "sqljs"))
             sql_cfg = {"db": db_name, "gz": len(blob), "bytes": int.from_bytes(blob[-4:], "little"), "worker": "sql-worker.js", "sqljs": "vendor/sqljs/"}
-        page = compose("snapshot", "", standalone=True, pages=True, data_url=name, hero=hero, art_url=art_name, site_url=a.site_url, sql=sql_cfg)
+        page = compose("snapshot", "", standalone=True, pages=True, data_url=name, hero=hero, art_url=art_name, site_url=a.site_url, sql=sql_cfg, data_bytes=len(gz))
         (out / "index.html").write_text(page, encoding="utf-8")
         # what a visitor's browser compares with romgi's live version.json to say whether this build is current
         (out / "version.json").write_text(json.dumps({
