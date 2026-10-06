@@ -1,6 +1,5 @@
 /* ============================================================ collections: hand-picked slices, and a daily shelf of covers */
 
-const popcount = m => { let n = 0; while (m) { n += m & 1; m >>= 1; } return n; };
 
 /** Editorial entry points. A preset names platforms, regions and sources by id, so it keeps working when the catalogue grows;
  *  one that no longer matches anything is left out rather than shown empty. `gallery` opens Browse as a gallery sorted that way. */
@@ -30,7 +29,7 @@ function resolvePreset(p, D) {
     plat: ids => ids.map(id => at(d.platforms, id)),
     reg: ids => ids.map(id => at(d.regions, id)),
     src: ids => ids.map(id => at(d.sources, id)),
-    avail: v => (v === 'min3' ? [...Array(16).keys()].filter(m => popcount(m) >= 3) : v),
+    avail: v => (v === 'min3' ? [...Array(1 << d.sources.length).keys()].filter(m => popcount(m) >= 3) : v),
   };
   const out = { ...p };
   let ok = true;

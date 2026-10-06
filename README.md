@@ -94,6 +94,7 @@ python3 -m http.server --directory site 8790                                    
 run.sh              one-command launcher: download the catalogue, build, serve
 serve.py            local server: dataset, per-entry rows, guarded SQL endpoint
 build_dataset.py    romdb.db -> compact columnar dataset (+ schema, profiles, quality checks)
+drift.py            guards: stops on a catalogue format it does not read, holds back a newest catalogue that is unfinished
 livedb.py           romdb.db -> the link-free copy the hosted SQL console runs on
 vendor_sqljs.py     fetches sql.js for the hosted site, verified against a pinned hash
 bundle.py           builds the hosted site (--pages) or the single-file versions into dist/
@@ -119,6 +120,13 @@ python3 livedb.py data/romdb.db dist/livedb.sqlite.gz --gzip && python3 tests/te
 node tests/transport.test.js site/catalogue.*.bin site/detail.*.bin dist/dataset.snapshot.json.gz
 node tests/early.test.js site/catalogue.*.bin site/detail.*.bin dist/dataset.snapshot.json.gz
 node tests/sqlconsole.test.js dist/livedb.sqlite.gz site/vendor/sqljs dist/dataset.snapshot.json.gz
+# a small catalogue with an invented fifth source, for the guards and the "new source" tests (about 10 seconds):
+python3 tests/make_fixture.py data/romdb.db dist/fixture/romdb.db --extra-source
+python3 build_dataset.py --db dist/fixture/romdb.db --version-json dist/fixture/version.json --out dist/fixture/dataset.json.gz
+python3 tests/test_drift.py dist/fixture/romdb.db
+node tests/sources.test.js dist/fixture/romdb.db dist/fixture/dataset.json.gz
+# the built site in a real browser (npm install --no-save playwright-core; CHROME_PATH or /usr/bin/google-chrome):
+node tests/smoke.test.js site
 ```
 
 The first checks every flag, size class, region, source, pack and format count against SQL, and that the table is stored in the order
@@ -131,6 +139,12 @@ cleanly. The next one runs the engine from the first file alone, as the page doe
 the whole dataset: counts, facets, collections and cross-tabs agree, the size measures answer with nothing instead of failing, and
 once the detail arrives the size totals and the sort by size agree too. The last runs the browser's SQL engine: what may run, that
 writes fail, CSV quoting, and every example the console offers.
+`test_drift.py` breaks copies of a small catalogue (a renamed column, a dropped table, a fifth region, a link from an unknown source,
+schema version 5) and checks each is refused with the reason, while a new source, table or column is only mentioned, then runs the
+completeness rule over romgi's real weekly history: it must call exactly the six weeks that were about 40% short unfinished.
+`sources.test.js` checks the explorer on a catalogue with a source it has never seen: colour slots, source counts, the "Offered by"
+filter and its printed SQL against the database. `smoke.test.js` opens the built site in a real browser and uses it: the overview, a
+search, a filter, a card, every view, the SQL console on the downloaded copy, a phone-width page, and that only expected hosts were asked for.
 
 ## Roadmap
 

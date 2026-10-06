@@ -69,7 +69,9 @@ const App = {
   },
   aboutText() {
     const m = this.D.meta, day = s => (s || '').slice(0, 10), f = this.fresh, hosted = !!window.ROMGI.data, built = window.ROMGI.builtAt || m.built_at;
-    const status = !f ? '' : f.state === 'current' ? ' It matches the latest catalogue romgi has published.' : ` romgi has since published the catalogue of ${esc(day(f.latest.generated_at))}.`;
+    const status = !f ? '' : f.state === 'current' ? ' It matches the latest catalogue romgi has published.'
+      : f.state === 'held' ? ` romgi's newest catalogue (${esc(day(f.latest.generated_at))}) looks incomplete, so this site still shows this one and will switch when romgi publishes a complete one.`
+      : ` romgi has since published the catalogue of ${esc(day(f.latest.generated_at))}.`;
     return `Catalogue of ${esc(day(m.generated_at))} (version ${esc(m.version)}) from <a href="${esc(m.source_repo)}" target="_blank" rel="noopener">romgi</a>, built ${esc(day(built))}.${status}${hosted ? ' This site checks romgi every three hours and rebuilds when there is something new.' : ''} <a href="https://github.com/aldoruizluna/romgi-explorer" target="_blank" rel="noopener">Source code</a> (MIT).`;
   },
   /** The dot beside the version: green when romgi has nothing newer, amber when it has. */
@@ -79,8 +81,16 @@ const App = {
     fd.dataset.s = f.state;
     const day = s => (s || '').slice(0, 10);
     v.dataset.tip = f.state === 'current' ? `Up to date with romgi's catalogue of ${day(this.D.meta.generated_at)}.`
+      : f.state === 'held' ? `romgi's newest catalogue (${day(f.latest.generated_at)}) looks incomplete, so this site still shows the one of ${day(this.D.meta.generated_at)}.`
       : `romgi has published a newer catalogue (${day(f.latest.generated_at)}). This site rebuilds itself within a few hours.`;
     if ($('#modal').classList.contains('on')) this.help();
+  },
+  /** When romgi's newest catalogue was held back as unfinished (it had lost a source, say), the Overview says so. */
+  heldHTML() {
+    const L = window.ROMGI.latest;
+    if (!L) return '';
+    const day = s => (s || '').slice(0, 10);
+    return `<div class="notice info" role="status">${icon('alert', 16)}<div><b>romgi's newest catalogue looks incomplete.</b> The one dated ${esc(day(L.generated_at))} has ${esc(L.reason)}. This explorer still shows the catalogue of ${esc(day(this.D.meta.generated_at))} and will switch when romgi publishes a complete one.</div></div>`;
   },
   paintTheme() { $('#theme-ic').innerHTML = icon(Theme.effective() === 'dark' ? 'sun' : 'moon', 16); },
   schedule() { if (this._raf) return; this._raf = requestAnimationFrame(() => { this._raf = 0; this.refresh(); }); },
@@ -116,7 +126,7 @@ const App = {
     $('#rail-reset').hidden = !S.anyActive();
     for (const f of S.facets) {
       const fg = $(`.fg[data-fid="${f.id}"]`), st = S.state.f[f.id], n = st ? st.inc.size + st.exc.size : 0;
-      $('.tail', fg).innerHTML = n ? `<span class="badge">${n}</span>` : (f.layout === 'alpha' || f.layout === 'sizes' ? '' : `<span class="hint">${f.n - (f.skip0 ? 1 : 0) + (f.noneExtra ? 1 : 0)}</span>`);
+      $('.tail', fg).innerHTML = n ? `<span class="badge">${n}</span>` : (f.layout === 'alpha' || f.layout === 'sizes' ? '' : `<span class="hint">${f.skip0 ? Array.from(S.base[S.state.grain][f.id]).filter((c, v) => v !== 0 && c > 0).length : f.n + (f.noneExtra ? 1 : 0)}</span>`);
       if (f.modeToggle) $$('.fg-tools button', fg).forEach(b => b.setAttribute('aria-pressed', String((st?.mode || 'any') === b.dataset.m)));
       if (fg.classList.contains('open')) $('.fg-list', fg).innerHTML = this.facetList(f);
     }
@@ -153,8 +163,8 @@ const App = {
       let lead = '';
       if (f.id === 'plat') lead = `<span class="cp">${esc(f.code(v))}</span>`;
       else if (f.id === 'src') lead = D.srcDot(v);
-      else if (f.layout === 'combo') lead = `<span class="combo-dots">${D.dims.sources.map((_, s) => `<i class="${v >> s & 1 ? 'on' : ''}" style="--c:var(--src-${s})"></i>`).join('')}</span>`;
-      const bar = f.id === 'src' ? `color-mix(in srgb, var(--src-${v}) 24%, transparent)` : '';
+      else if (f.layout === 'combo') lead = `<span class="combo-dots">${D.dims.sources.map((_, s) => `<i class="${v >> s & 1 ? 'on' : ''}" style="--c:${D.srcVar(s)}"></i>`).join('')}</span>`;
+      const bar = f.id === 'src' ? `color-mix(in srgb, ${D.srcVar(v)} 24%, transparent)` : '';
       const tipTxt = f.fullName ? f.fullName(v) : f.hint && typeof f.hint === 'function' ? `${nm} (${f.hint(v)})` : nm;
       return `<button class="fr${cls(v)}" style="--w:${((counts[v] / maxC) * 100).toFixed(1)}%;${bar ? `--bar:${bar}` : ''}" data-act="facet" data-f="${f.id}" data-v="${v}" data-tip="${esc(tipTxt)}">
         <span class="tick">${st.exc.has(v) ? icon('minus', 11) : icon('check', 11)}</span><span class="lbl">${lead}<span>${esc(nm)}</span></span><span class="n">${fmtN(counts[v])}</span></button>`;

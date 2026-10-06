@@ -63,6 +63,7 @@ def main():
     ap.add_argument("--dataset", help="gzip'd dataset JSON built by build_dataset.py (without --local)")
     ap.add_argument("--site-url", default="", help="with --pages: the public address of the site (ending in /), for link-preview tags and the social card")
     ap.add_argument("--live-db", help="with --pages: gzip'd link-free copy of the database from livedb.py; the site gets a SQL console that runs in the browser")
+    ap.add_argument("--pick", help="with --pages: data/pick.json from drift.py pick; when romgi's newest catalogue was held back as unfinished, the site says so")
     ap.add_argument("--art", help="gzip'd box-art paths from build_dataset.py --art-out; with --pages they become a file the site loads after start")
     ap.add_argument("--out-dir", default=str(HERE / "dist"))
     ap.add_argument("--pages", action="store_true", help="write a site for GitHub Pages into --out-dir (index.html marked noindex, the catalogue as its own file, version.json) instead of the two dist files")
@@ -105,6 +106,12 @@ def main():
                 (fonts / f.name).write_bytes(f.read_bytes())
         if a.site_url:
             (out / "og.png").write_bytes((HERE / "web" / "og" / "og.png").read_bytes())
+        latest = None
+        if a.pick:
+            pk = json.loads(Path(a.pick).read_text())
+            if pk.get("held"):
+                L = pk["latest"]
+                latest = {"version": L["version"], "generated_at": L["date"], "entries": L["entries"], "links": L["links"], "reason": pk["reason"]}
         sql_cfg, db_name = None, ""
         if a.live_db:
             from vendor_sqljs import fetch as fetch_sqljs
@@ -117,12 +124,13 @@ def main():
             fetch_sqljs(str(out / "vendor" / "sqljs"))
             sql_cfg = {"db": db_name, "gz": len(blob), "bytes": int.from_bytes(blob[-4:], "little"), "worker": "sql-worker.js", "sqljs": "vendor/sqljs/"}
         page = compose("snapshot", "", standalone=True, pages=True, data_url=name, hero=hero, art_url=art_name, site_url=a.site_url, sql=sql_cfg, data_bytes=len(gz),
-                       detail_url=detail_name, detail_bytes=len(detail_gz), built_at=built_at or "")
+                       detail_url=detail_name, detail_bytes=len(detail_gz), built_at=built_at or "", latest=latest)
         (out / "index.html").write_text(page, encoding="utf-8")
         # what a visitor's browser compares with romgi's live version.json to say whether this build is current
         (out / "version.json").write_text(json.dumps({
             "built_at": built_at, "data": name, "detail": detail_name, "art": art_name or None, "db": db_name or None,
             "romgi": {"version": meta["version"], "generated_at": meta.get("generated_at"), "entries": hero["entries"], "links": hero["links"]},
+            **({"latest": latest} if latest else {}),
         }, indent=1) + "\n", encoding="utf-8")
         print(f"catalogue  {mb(len(gz))}  {out}/{name}   (the page starts when this has arrived)")
         print(f"detail     {mb(len(detail_gz))}  {out}/{detail_name}   (titles, serials, slugs, exact sizes; follows in the background)")

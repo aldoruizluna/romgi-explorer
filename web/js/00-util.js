@@ -15,6 +15,7 @@ const compact = n => {
   return String(Math.round(n * 10) / 10);
 };
 const UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
+const popcount = m => { let n = 0; while (m) { n += m & 1; m >>= 1; } return n; };
 const fmtBytes = (n, d = 1) => {
   if (!n) return '0 B';
   let i = 0;

@@ -13,7 +13,7 @@ App.views.sources = {
       const delivery = man.delivery === 'torrent' || caps.includes('torrent_distribution') ? 'BitTorrent, one file at a time' : caps.includes('http_range_resume') ? 'HTTP, resumable' : 'HTTP';
       const plats = (man.platforms || []).map(p => p.toUpperCase());
       const status = h ? `<span class="pill ${h.status === 'ok' ? 'ok' : 'serious'}" data-tip="Checked ${esc(utc(h.last_checked))}">${icon(h.status === 'ok' ? 'check-c' : 'alert', 13)}${esc(h.status === 'ok' ? 'Online' : h.status)}</span>` : '<span class="pill">Unknown</span>';
-      return `<section class="card src-card" style="--c:var(--src-${i})">
+      return `<section class="card src-card" style="--c:${D.srcVar(i)}">
         <div class="card-h"><div style="display:flex;align-items:center;gap:11px"><i class="sd big"></i><div><h3>${esc(s.name)}</h3><p><a href="${esc(s.homepage)}" target="_blank" rel="noopener">${esc(hostOf(s.homepage))} ${icon('ext', 11)}</a></p></div></div><div class="acts">${status}</div></div>
         <div class="src-stats">
           <div><div class="l">Links in view</div><div class="v num">${fmtN(links[i])}</div><div class="s num">of ${fmtN(baseL[i])}</div></div>
@@ -31,13 +31,12 @@ App.views.sources = {
 
     // overlap
     const av = S.groupBy('avail', 'entries'), selA = selectedOf('avail');
-    const combos = []; for (let m = 1; m < 16; m++) if (av[m] > 0) combos.push({ m, n: av[m] });
+    const combos = []; for (let m = 1; m < av.length; m++) if (av[m] > 0) combos.push({ m, n: av[m] });
     combos.sort((a, b) => b.n - a.n);
     const maxN = Math.max(1, ...combos.map(c => c.n)), totalN = combos.reduce((s, c) => s + c.n, 0) || 1;
-    const ABBR = { minerva: 'MiNERVA', internet_archive: 'IA', nopaystation: 'NoPS', mariocube: 'MarioCube' };
-    const names = m => D.comboSources(m).map(s => ABBR[dims.sources[s].id]).join(' + '), fullNames = m => D.comboSources(m).map(s => dims.sources[s].short).join(' + ');
+    const names = m => D.comboSources(m).map(s => D.srcAbbr(s)).join(' + '), fullNames = m => D.comboSources(m).map(s => dims.sources[s].short).join(' + ');
     const up = combos.length ? `<div class="up">${combos.map(c => `<button class="up-row${selA?.has(c.m) ? ' sel' : ''}" data-act="facet" data-f="avail" data-v="${c.m}" data-tk="${Tip.tk(() => tipBox(fullNames(c.m), [['Entries', fmtN(c.n)], ['Share', pct(c.n, totalN)]], c.m & (c.m - 1) ? 'Offered by every source listed.' : 'Offered only by this source.'))}">
-      <span class="combo-dots">${dims.sources.map((_, s) => `<i class="${c.m >> s & 1 ? 'on' : ''}" style="--c:var(--src-${s})"></i>`).join('')}</span>
+      <span class="combo-dots">${dims.sources.map((_, s) => `<i class="${c.m >> s & 1 ? 'on' : ''}" style="--c:${D.srcVar(s)}"></i>`).join('')}</span>
       <span class="up-n">${esc(fullNames(c.m))}</span><span class="num up-v">${fmtN(c.n)}</span><span class="up-bar"><i style="width:${((100 * c.n) / maxN).toFixed(2)}%"></i></span></button>`).join('')}</div>` : '<div class="vt-empty">Nothing in this slice.</div>';
     const overlap = chartCard({
       id: 'overlap', cls: 's6', title: 'Who offers each entry', sub: 'Entries by the exact set of sources that carry them. Click a row to filter.',

@@ -29,6 +29,7 @@
   --src-1: #199e70;
   --src-2: #c98500;
   --src-3: #d55181;
+  --src-4: #6f8ff0; --src-5: #84991a; --src-6: #9b6fe0; --src-7: #1a9fbf; --src-8: #8f9ab0;      /* slots 4-7 for sources romgi adds; 8 is shared by any beyond */
 
   --seq-0: #0d366b; --seq-1: #184f95; --seq-2: #256abf; --seq-3: #3987e5; --seq-4: #6da7ec; --seq-5: #9ec5f4; --seq-6: #cde2fb;
   --ord-1: #184f95; --ord-2: #256abf; --ord-3: #3987e5; --ord-4: #6da7ec; --ord-5: #9ec5f4;
@@ -58,7 +59,7 @@
     --line: #e2e7ef; --line-2: #cdd5e1;
     --ink: #0f1420; --ink-2: #434d62; --ink-3: #566178; --ink-4: #98a1b3;
     --accent: #2a78d6; --accent-text: #1f5fb3; --accent-soft: rgba(42, 120, 214, 0.1); --accent-wash: rgba(42, 120, 214, 0.16); --accent-line: rgba(42, 120, 214, 0.45);
-    --src-0: #eb6834; --src-1: #1baf7a; --src-2: #eda100; --src-3: #e87ba4;
+    --src-0: #eb6834; --src-1: #1baf7a; --src-2: #eda100; --src-3: #e87ba4; --src-4: #2a78d6; --src-5: #7a8f0a; --src-6: #7a55d6; --src-7: #0c8fb0; --src-8: #566178;
     --seq-0: #cde2fb; --seq-1: #9ec5f4; --seq-2: #6da7ec; --seq-3: #3987e5; --seq-4: #256abf; --seq-5: #184f95; --seq-6: #0d366b;
     --ord-1: #86b6ef; --ord-2: #5598e7; --ord-3: #2a78d6; --ord-4: #1c5cab; --ord-5: #104281;
     --div-lo: #2a78d6; --div-mid: #f0efec; --div-hi: #e34948;
@@ -74,7 +75,7 @@
   --line: #e2e7ef; --line-2: #cdd5e1;
   --ink: #0f1420; --ink-2: #434d62; --ink-3: #566178; --ink-4: #98a1b3;
   --accent: #2a78d6; --accent-text: #1f5fb3; --accent-soft: rgba(42, 120, 214, 0.1); --accent-wash: rgba(42, 120, 214, 0.16); --accent-line: rgba(42, 120, 214, 0.45);
-  --src-0: #eb6834; --src-1: #1baf7a; --src-2: #eda100; --src-3: #e87ba4;
+  --src-0: #eb6834; --src-1: #1baf7a; --src-2: #eda100; --src-3: #e87ba4; --src-4: #2a78d6; --src-5: #7a8f0a; --src-6: #7a55d6; --src-7: #0c8fb0; --src-8: #566178;
   --seq-0: #cde2fb; --seq-1: #9ec5f4; --seq-2: #6da7ec; --seq-3: #3987e5; --seq-4: #256abf; --seq-5: #184f95; --seq-6: #0d366b;
   --ord-1: #86b6ef; --ord-2: #5598e7; --ord-3: #2a78d6; --ord-4: #1c5cab; --ord-5: #104281;
   --div-lo: #2a78d6; --div-mid: #f0efec; --div-hi: #e34948;
@@ -150,7 +151,7 @@ a:hover { text-decoration: underline; }
 .ver .fd { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; background: var(--ink-4); }
 .ver .fd:not([data-s]) { display: none; }
 .ver .fd[data-s="current"] { background: var(--good); }
-.ver .fd[data-s="behind"] { background: var(--warn); }
+.ver .fd[data-s="behind"], .ver .fd[data-s="held"] { background: var(--warn); }
 .ver { font: 500 11px/1 var(--font-mono); color: var(--ink-2); padding: 6px 8px; border-radius: var(--r-s); background: var(--panel); border: 1px solid var(--line); white-space: nowrap; }
 
 .btn {

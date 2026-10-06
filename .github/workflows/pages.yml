@@ -3,12 +3,19 @@ name: Publish the explorer
 # Builds the hosted explorer from romgi's published catalogue and deploys it to GitHub Pages.
 # Every push to main rebuilds. A check every three hours rebuilds only when romgi has published something new
 # (romgi's catalogue changes weekly, on Sundays). The catalogue is downloaded on every build and never committed.
+# Two guards run first (drift.py): a catalogue in a format this explorer does not read stops the build, and one that looks
+# unfinished (romgi has twice published one about 40% short) is held back: the site keeps showing the last complete one and says so.
 on:
   push:
     branches: [main]
   schedule:
     - cron: "17 */3 * * *"
   workflow_dispatch:
+    inputs:
+      accept_latest:
+        description: "Show romgi's newest catalogue even if it looks unfinished"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -24,38 +31,9 @@ jobs:
     outputs:
       rebuild: ${{ steps.compare.outputs.rebuild }}
     steps:
+      - uses: actions/checkout@v7
       - id: compare
-        env:
-          EVENT: ${{ github.event_name }}
-          SITE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/version.json
-        run: |
-          python3 - <<'PY'
-          import json, os, urllib.request
-
-          def get(url):
-              try:
-                  req = urllib.request.Request(url, headers={"User-Agent": "romgi-explorer", "Cache-Control": "no-cache"})
-                  with urllib.request.urlopen(req, timeout=30) as r:
-                      return json.load(r)
-              except Exception as e:
-                  print("could not read", url, "-", e)
-                  return None
-
-          ours = get(os.environ["SITE"])
-          theirs = get("https://raw.githubusercontent.com/caprado/romgi/main/db/version.json")
-          keys = ("version", "generated_at", "entries", "links")
-          if os.environ["EVENT"] != "schedule":
-              rebuild, why = True, "started by " + os.environ["EVENT"]
-          elif not theirs:
-              rebuild, why = False, "cannot read romgi's version.json, so the site stays as it is"
-          elif not ours or any((ours.get("romgi") or {}).get(k) != theirs.get(k) for k in keys):
-              rebuild, why = True, "romgi has published something the site does not show yet"
-          else:
-              rebuild, why = False, "the site already shows romgi's latest catalogue"
-          print(why)
-          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
-              out.write("rebuild=" + ("true" if rebuild else "false") + "\n")
-          PY
+        run: python3 drift.py rebuild --event "${{ github.event_name }}" --site "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/version.json"
 
   build:
     needs: check
@@ -67,14 +45,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Download the published catalogue
+      - name: Read romgi's newest version.json
         run: |
-          RAW=https://raw.githubusercontent.com/caprado/romgi/main/db
           mkdir -p data dist
-          curl -fsSL --retry 3 -o data/romdb.db.gz "$RAW/romdb.db.gz"
-          curl -fsSL --retry 3 -o data/version.json "$RAW/version.json"
-          gunzip -f data/romdb.db.gz
-          cat data/version.json
+          curl -fsSL --retry 3 -o data/version.latest.json https://raw.githubusercontent.com/caprado/romgi/main/db/version.json
+          cat data/version.latest.json
 
       - name: Add the snapshots published since data/history.json was written
         run: python3 refresh_history.py
@@ -93,11 +68,37 @@ jobs:
           git pull --rebase origin main
           git push origin HEAD:main
 
+      - name: Choose the catalogue to show (the newest, unless it looks unfinished)
+        id: pick
+        run: python3 drift.py pick --latest data/version.latest.json --history data/history.json --out data/pick.json
+        env:
+          ROMGI_ACCEPT_LATEST: ${{ inputs.accept_latest }}
+
+      - name: Download that catalogue
+        run: |
+          RAW="https://raw.githubusercontent.com/caprado/romgi/${{ steps.pick.outputs.ref }}/db"
+          curl -fsSL --retry 3 -o data/romdb.db.gz "$RAW/romdb.db.gz"
+          curl -fsSL --retry 3 -o data/version.json "$RAW/version.json"
+          gunzip -f data/romdb.db.gz
+          cat data/version.json
+
+      - name: Check it is in the format this explorer reads
+        run: python3 drift.py check data/romdb.db data/version.json
+
       - name: Build the dataset
         run: python3 build_dataset.py --db data/romdb.db --version-json data/version.json --out dist/dataset.snapshot.json.gz --art-out dist/art.snapshot.json.gz
 
       - name: Check the dataset against SQL
         run: python3 tests/test_dataset.py data/romdb.db dist/dataset.snapshot.json.gz
+
+      - name: Check the guards and the explorer's handling of a source it has not seen
+        run: |
+          python3 tests/make_fixture.py data/romdb.db dist/fixture/romdb.db --extra-source
+          python3 build_dataset.py --db dist/fixture/romdb.db --version-json dist/fixture/version.json --out dist/fixture/dataset.json.gz --art-out dist/fixture/art.json.gz
+          python3 tests/test_drift.py dist/fixture/romdb.db
+          python3 tests/test_dataset.py dist/fixture/romdb.db dist/fixture/dataset.json.gz
+          node tests/sources.test.js dist/fixture/romdb.db dist/fixture/dataset.json.gz
+          node tests/engine.test.js dist/fixture/romdb.db dist/fixture/dataset.json.gz 10
 
       - name: Check the browser engine against SQL
         run: node tests/engine.test.js data/romdb.db dist/dataset.snapshot.json.gz 12
@@ -109,7 +110,7 @@ jobs:
         run: python3 tests/test_livedb.py data/romdb.db dist/livedb.sqlite.gz
 
       - name: Build the site
-        run: python3 bundle.py --dataset dist/dataset.snapshot.json.gz --art dist/art.snapshot.json.gz --live-db dist/livedb.sqlite.gz --pages --out-dir site --site-url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+        run: python3 bundle.py --dataset dist/dataset.snapshot.json.gz --art dist/art.snapshot.json.gz --live-db dist/livedb.sqlite.gz --pick data/pick.json --pages --out-dir site --site-url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
 
       - name: Check the SQL console's engine
         run: node tests/sqlconsole.test.js dist/livedb.sqlite.gz site/vendor/sqljs dist/dataset.snapshot.json.gz
@@ -119,6 +120,16 @@ jobs:
 
       - name: Check the page works from the first file alone, and again when the second arrives
         run: node tests/early.test.js site/catalogue.*.bin site/detail.*.bin dist/dataset.snapshot.json.gz
+
+      - name: Open the built site in a real browser and use it
+        run: |
+          npm install --no-save --no-audit --no-fund playwright-core@1.49.1
+          node tests/smoke.test.js site
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+
+      - name: Write the run summary
+        run: python3 drift.py summary site data/pick.json
 
       - uses: actions/upload-pages-artifact@v5
         with:

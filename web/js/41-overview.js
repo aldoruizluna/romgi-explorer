@@ -63,7 +63,7 @@ App.views.overview = {
     const mode = App.ui.stack;
     const plRows = dims.platforms.map((p, i) => ({ v: i, label: p.code, name: p.name, parts: Array.from({ length: x.nc }, (_, s) => x.cells[i * x.nc + s]) }))
       .filter(r => r.parts.some(Boolean)).sort((a, c) => c.parts.reduce((s, y) => s + y, 0) - a.parts.reduce((s, y) => s + y, 0)).slice(0, 14);
-    const series = dims.sources.map((s, i) => ({ label: s.short, color: `var(--src-${i})`, facet: 'src', v: i }));
+    const series = dims.sources.map((s, i) => ({ label: s.short, color: D.srcVar(i), facet: 'src', v: i }));
     const mixCard = chartCard({
       id: 'mix', cls: 's4', title: 'Source mix by platform', sub: 'Links per source for the 14 largest platforms.',
       acts: `<div class="seg" role="group" aria-label="Scale"><button data-act="stack" data-m="abs" aria-pressed="${mode === 'abs'}">Count</button><button data-act="stack" data-m="pct" aria-pressed="${mode === 'pct'}">Share</button></div>`,
@@ -91,7 +91,8 @@ App.views.overview = {
     });
 
     const shelves = S.anyActive() ? '' : collectionsHTML() + picksHTML();
-    root.innerHTML = `<div class="grid">${hero}${kp}${shelves}${tmCard}${mixCard}
+    const held = App.heldHTML();
+    root.innerHTML = `<div class="grid">${held ? `<div class="s12">${held}</div>` : ''}${hero}${kp}${shelves}${tmCard}${mixCard}
       ${simpleBars('reg', 'Regions', 'An entry can belong to up to three.', { sort: false })}
       ${szCard}${covCard}
       ${simpleBars('flag', 'Release flags', 'Tags read from titles, such as Beta or Unlicensed.', { top: 11 })}

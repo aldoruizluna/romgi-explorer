@@ -22,8 +22,8 @@ Before any of that, make it hard to break: the build assumes exactly four source
 "db split" is coming. A fifth source or a schema change would stop our deploys today.
 
 On sources: the useful enrichment is *reference data about the games already in the catalogue* (names, hashes, genres, years,
-screenshots), plus catalogues of content that is licensed for distribution. Adding more hosts of copyrighted ROMs is romgi's call, and
-not something the public site will do (see G).
+screenshots), and anything romgi adds flows through on its own. Indexing ROM-download sites is not something this project builds
+(see G).
 
 ## Where we stand (2026-10-06)
 
@@ -40,11 +40,11 @@ not something the public site will do (see G).
 
 What is weak, from reading the code and the live site:
 
-- **Four sources are assumed in six places:** `SOURCE_ORDER`/`SOURCE_SHORT` and an assert on the source set in `build_dataset.py`, a
-  four-term popcount for entries' source counts in `10-data.js`, the "Offered by" filter sized 16 in `20-engine.js`, `Array(16)` in the
-  collections presets, and four colour tokens in `app.css`. A fifth source fails the build.
-- **No permalinks.** The URL hash holds only the view; filters live in local storage and the entry card opens by row index, which changes
-  with every build. A slice or an entry cannot be linked.
+- ~~**Four sources assumed in six places.**~~ *Fixed 2026-10-06 (A1).* The builder takes the source list from the data (known sources keep
+  their colour slots, new ones take the next free of eight), the filter and collections size themselves from the source count, and a
+  fifth source is tested end to end (`tests/sources.test.js`).
+- **No permalinks.** The URL hash holds only the view; filters are kept nowhere (a reload loses them) and the entry card opens by row
+  index, which changes with every build. A slice or an entry cannot be linked.
 - **No grouping.** "Same title" in the card matches identical titles only; revisions, betas and variants are separate rows.
 - **A thin card.** Catalogue fields only: no screenshot, genre, year, developer or editions.
 - **Search is substring and `-word`.** No ranking, no operators, and an empty result offers only "Clear all filters".
@@ -77,10 +77,10 @@ or sharing, so those items rest on patterns in comparable tools, not on demand h
 
 | ID | What | Why | Size |
 |---|---|---|---|
-| A1 | **Generalise to N sources.** Read the source list from the data; popcount instead of four terms; "Offered by" sized from the source count (cap at 8, then group); colour tokens generated; a synthetic five-source dataset in the tests | A fifth source fails the build today (six places listed above) | M |
-| A2 | **Schema and source drift guard.** Check `schema_version`, table and column names; a new *source* builds, a new *schema* stops with a message that names what changed; the CI summary says which | romgi's maintainer mentioned a coming "db split" (issue #33); our pipeline reads schema v4 | S |
-| A3 | **Boot smoke test in CI.** Load the built site in a real browser: overview renders, search wakes up when the detail lands, no console errors, a filter changes a count, the SQL console opens | Unit tests pass while a boot-time JS error takes the site down; nothing in CI runs the page | S–M |
-| A4 | **Run summary and heartbeat.** Job summary with file sizes, row counts, timings and the diff against the previous build; alert on failure; keep the schedule from going dormant after 60 days without activity | Silent failure is the main risk of a self-updating site | S |
+| A1 | ✅ *Done 2026-10-06.* **Generalise to N sources.** Read the source list from the data; popcount instead of four terms; "Offered by" sized from the source count (cap at 8, then group); colour tokens generated; a synthetic five-source dataset in the tests | A fifth source fails the build today (six places listed above) | M |
+| A2 | ✅ *Done 2026-10-06.* **Schema and source drift guard, and a completeness rule.** `drift.py` stops the build when the schema version, a documented table or column, or a value the builder relies on changes, and says which; new sources, tables and columns go through with a note. It also holds back a newest catalogue that is more than 25% short of the recent complete ones: the site keeps showing the last complete one, says so on the Overview, and switches when romgi publishes a complete one (six weeks without one, or a manual dispatch input, accepts it). Run against romgi's real history it flags exactly the six unfinished weeks of 2026 and nothing else | romgi's maintainer mentioned a coming "db split"; romgi moved from schema 3 to 4 in August; our pipeline reads schema v4 | S |
+| A3 | ✅ *Done 2026-10-06.* **Boot smoke test in CI.** Load the built site in a real browser: overview renders, search wakes up when the detail lands, no console errors, a filter changes a count, the SQL console opens | Unit tests pass while a boot-time JS error takes the site down; nothing in CI runs the page | S–M |
+| A4 | ◐ *Run summary done 2026-10-06; failure alert and heartbeat left.* **Run summary and heartbeat.** Job summary with file sizes, row counts, timings and the diff against the previous build; alert on failure; keep the schedule from going dormant after 60 days without activity | Silent failure is the main risk of a self-updating site | S |
 
 ## B. Fast on a phone
 
@@ -174,9 +174,9 @@ These findings also go on the Quality view; no outreach is planned (decision, 20
 | ID | What | Answer |
 |---|---|---|
 | G1 | **Sources romgi adds.** Once A1 is done, a new source in romgi's catalogue appears on its own. A page per source says what it uniquely holds; E2 and E3 show how it behaves over time | Do |
-| G2 | **Content that is licensed for distribution**, in a clearly labelled "open" source family that can link to the files because the distribution is permitted: **Homebrew Hub** (1,629 entries: Game Boy 913, Game Boy Color 448, GBA 245, NES 23; each entry carries its own licence, shown by the API for only 87), **libretro's open-content assets** (homebrew, demos, Cave Story, DOOM; no per-file licence data, so link, do not mirror), the **28 free arcade titles on mamedev.org**, **ZXDB** (ZX Spectrum, with a per-owner permissions table), plus Demozoo and itch.io as link-out only. About 2,000 entries, so cheap to carry | Do, after F1 to F3. Link always, host never without an explicit licence. The Internet Archive's `licenseurl` is whatever the uploader typed (a complete NES collection is tagged CC0): never use it as proof of permission |
+| G2 | *Removed at the owner's request, 2026-10-06:* no homebrew or similar content in this repository until further notice | — |
 | G3 | **Bring your own source, local only.** The local explorer merges a file of the user's own links (romgi's own `user_sources` idea) so the user can see their sources next to the catalogue. The hosted site never ships third-party link data | Your call, later |
-| G4 | **More hosts of copyrighted ROMs** | Not on the hosted site, and not something this project crawls. If romgi indexes one, A1 shows it |
+| G4 | **ROM-download sites as sources** (romsgames.net, Vimm's Vault, romspedia, romsfun and similar, asked for on 2026-10-06) | Not built here. These sites distribute copyrighted games, and an index of them, local or hosted, is not something the assistant will write. The facts they show (titles, regions, sizes, hashes, dates, genres) come from the preservation datasets in F, which those sites draw on; use those. If romgi indexes one, A1 shows it |
 
 ## H. Project health
 
@@ -197,7 +197,7 @@ Phase 2, make the card worth opening: **C5** with **F4** first (screenshots and 
 **F2** (names, hashes, serials), **F3** (genre, year, developer), **C3**, **C6**, **C7**, **D1**, **D2**, **B2**, **E2**, **F9**.
 
 Phase 3, understand and decide: **C4**, **E1**, the completeness and audit analyses (F1 and F2 make them possible), **D3**, **C8**,
-**G1** and **G2**.
+**G1**.
 
 Phase 4, reach: **C9**, **C10**, **C13**, and whatever you choose from G3. **B2** (installable, offline) and **C11** (Spanish and
 English) are confirmed; they follow the card work unless you want them sooner. **H2** (say what this is) belongs early.
@@ -239,5 +239,4 @@ Answered by the owner on 2026-10-06:
 4. **Spanish and English UI** and an **installable, offline app:** yes.
 
 Still on their defaults unless you say otherwise: keep the name "Romgi Catalog Explorer" with a clear "not affiliated" line (H2); no
-analytics (H4); stay on GitHub Pages; tiers 1 and 2 of sources yes, a local-only bring-your-own source later (G3), never more hosts of
-copyrighted ROMs on the public site.
+analytics (H4); stay on GitHub Pages; reference data yes (F), a local-only bring-your-own source later (G3), no ROM-download sites (G4), no homebrew (G2).

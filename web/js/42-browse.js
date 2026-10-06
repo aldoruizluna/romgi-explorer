@@ -33,7 +33,7 @@ const LINK_COLS = [
 function entryCells(i) {
   const D = App.D, E = D.E, fixed = D.fixTitle(i);
   const flags = D.flagLabels(i);
-  const src = D.comboSources(E.smask[i]).map(s => `<i class="sd" style="--c:var(--src-${s})" data-tip="${esc(D.dims.sources[s].short)}"></i>`).join('');
+  const src = D.comboSources(E.smask[i]).map(s => `<i class="sd" style="--c:${D.srcVar(s)}" data-tip="${esc(D.dims.sources[s].short)}"></i>`).join('');
   return {
     title: `<span class="title" data-tip="${esc(fixed ? 'Stored as: ' + E.title[i] : JSON.stringify(E.title[i]))}">${esc(D.titleShown(i))}</span>${fixed ? '<span class="tg warn" data-tip="The stored title is scrambled. Showing the repaired text.">repaired</span>' : ''}`,
     platform: `<span class="cp">${esc(D.platformOf(i).code)}</span>`,
@@ -64,7 +64,7 @@ function linkCells(l) {
 function galCardHTML(i) {
   const D = App.D, p = D.platformOf(i), url = D.caps.art ? D.artUrl(i) : null;
   return `<button class="gcard" data-act="open" data-i="${i}"><span class="art">${url ? `<img data-src="${esc(url)}" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" alt="">` : ''}<span class="ph">${esc(p.code)}<small>${esc(D.regIds(i).map(r => REG_CODE[r]).join(' '))}</small></span></span>
-    <span class="meta"><span class="t">${esc(D.titleShown(i))}</span><span class="s">${esc(p.code)} · ${esc(D.regIds(i).map(r => REG_CODE[r]).join(' ') || 'no region')}</span><span class="row">${D.comboSources(D.E.smask[i]).map(s => `<i class="sd" style="--c:var(--src-${s})"></i>`).join('')}${D.E.ran[i] ? `<span class="ra">${icon('trophy', 12)}${D.E.ran[i]}</span>` : ''}</span></span></button>`;
+    <span class="meta"><span class="t">${esc(D.titleShown(i))}</span><span class="s">${esc(p.code)} · ${esc(D.regIds(i).map(r => REG_CODE[r]).join(' ') || 'no region')}</span><span class="row">${D.comboSources(D.E.smask[i]).map(s => `<i class="sd" style="--c:${D.srcVar(s)}"></i>`).join('')}${D.E.ran[i] ? `<span class="ra">${icon('trophy', 12)}${D.E.ran[i]}</span>` : ''}</span></span></button>`;
 }
 /** A cover starts downloading only when its card is within reach of the screen, a little sooner than the browser's own lazy loading,
  *  so a phone does not fetch a shelf it has not scrolled to. */

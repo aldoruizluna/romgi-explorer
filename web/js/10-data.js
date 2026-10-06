@@ -100,7 +100,9 @@ async function checkFreshness() {
     if (!r.ok) return;
     const j = await r.json(), m = D.meta;
     const same = j.version === m.version && j.generated_at === m.generated_at && j.entries === D.E.n && j.links === D.L.n;
-    App.fresh = { state: !same && Date.parse(j.generated_at) > Date.parse(m.generated_at) ? 'behind' : 'current', latest: j };
+    const held = window.ROMGI.latest;           // romgi's newest catalogue, when this build held it back as unfinished
+    const isHeld = held && j.version === held.version && j.entries === held.entries && j.links === held.links;
+    App.fresh = { state: isHeld ? 'held' : !same && Date.parse(j.generated_at) > Date.parse(m.generated_at) ? 'behind' : 'current', latest: j };
   } catch { return; }          // offline, or a host that blocks the request: say nothing
   App.paintFresh();
 }
@@ -148,7 +150,7 @@ function* prepareSteps(raw) {
   for (let c = 0; c < 125; c++) { let x = c, m = 0; while (x) { const r = x % 5 - 1; if (r >= 0) m |= 1 << r; x = Math.floor(x / 5); } REGLUT[c] = m || 16; }
   E.brand = new Uint8Array(nE);
   E.regBits = new Uint8Array(nE);
-  E.smask = new Uint8Array(nE);
+  E.smask = new Uint16Array(nE);         // a bit per source (up to 12)
   E.nsrc = new Uint8Array(nE);
   E.rab = new Uint8Array(nE);
   E.nlb = new Uint8Array(nE);
@@ -165,7 +167,7 @@ function* prepareSteps(raw) {
     let m = 0;
     for (let k = E.start[i]; k < E.start[i + 1]; k++) m |= 1 << L.src[k];
     E.smask[i] = m;
-    E.nsrc[i] = (m & 1) + ((m >> 1) & 1) + ((m >> 2) & 1) + ((m >> 3) & 1);
+    E.nsrc[i] = popcount(m);
     const n = E.ran[i];
     E.rab[i] = n === 0 ? 0 : n < 10 ? 1 : n < 25 ? 2 : n < 50 ? 3 : n < 100 ? 4 : n < 250 ? 5 : 6;
     const nl = E.nl[i];
@@ -186,7 +188,10 @@ function* prepareSteps(raw) {
   };
   D.fixTitle = i => D.fixes.get(i) || null;
   D.titleShown = i => { if (!E.title) return ''; const t = (D.fixes.get(i) || E.title[i]).replace(/^ +| +$/g, ''); return t || '(empty title)'; };
-  D.srcDot = s => `<i class="sd" style="--c:var(--src-${s})"></i>`;
+  D.srcVar = s => `var(--src-${dims.sources[s].slot})`;                       // a source keeps its colour whatever its position
+  const ABBR = { minerva: 'MiNERVA', internet_archive: 'IA', nopaystation: 'NoPS', mariocube: 'MarioCube' };
+  D.srcAbbr = s => ABBR[dims.sources[s].id] || dims.sources[s].short;
+  D.srcDot = s => `<i class="sd" style="--c:${D.srcVar(s)}"></i>`;
   D.comboSources = mask => dims.sources.map((_, s) => s).filter(s => mask >> s & 1);
   D.entryLinks = i => [E.start[i], E.start[i + 1]];
   D.groupOf = i => (E.group[i] >= 0 ? dims.groups[E.group[i]] : null);

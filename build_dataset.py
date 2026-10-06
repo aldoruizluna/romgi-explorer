@@ -19,6 +19,7 @@ import datetime as dt
 import gzip
 import json
 import math
+import os
 import re
 import sqlite3
 import sys
@@ -27,13 +28,18 @@ import unicodedata
 from pathlib import Path
 from urllib.parse import urlparse
 
-HERE = Path(__file__).resolve().parent
-BUILD_VERSION = 9   # bump when the dataset format changes; serve.py keys its cache on it
+from drift import MAX_SOURCES, check_catalogue
 
-# Fixed entity order. Colour slots are assigned by this order and never by rank, so a source keeps its colour.
+HERE = Path(__file__).resolve().parent
+BUILD_VERSION = 10   # bump when the dataset format changes; serve.py keys its cache on it
+
+# The sources romgi has had so far. Their order is their colour slot (never their rank), so a source keeps its colour. A source that
+# romgi adds later is appended after these and takes the next free slot; beyond SOURCE_SLOTS they share the neutral last slot.
+# "Offered by" is a bit mask over the sources, so there is a ceiling (MAX_SOURCES); past it the build says so instead of guessing.
 SOURCE_ORDER = ["minerva", "internet_archive", "nopaystation", "mariocube"]
 SOURCE_SHORT = {"minerva": "MiNERVA", "internet_archive": "Internet Archive",
                 "nopaystation": "NoPayStation", "mariocube": "MarioCube"}
+SOURCE_SLOTS = 8
 REGION_ORDER = ["us", "eu", "jp", "other"]
 REGION_NAMES = {"us": "USA", "eu": "Europe", "jp": "Japan", "other": "Other"}
 
@@ -197,6 +203,15 @@ def build(db_path, *, local=False, version_json=None, history_json=None, profile
     con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     cur = con.cursor()
 
+    # Is this the catalogue format the rest of this function reads? Say what is wrong before anything below fails obscurely.
+    vp0 = Path(version_json) if version_json else Path(db_path).with_name("version.json")
+    allow = {int(x) for x in os.environ.get("ROMGI_ALLOW_SCHEMA", "").replace(",", " ").split() if x.isdigit()}
+    drift_report = check_catalogue(con, json.loads(vp0.read_text()) if vp0.exists() else {}, allow)
+    for note in drift_report.notes:
+        log("note:", note)
+    if drift_report.fatal:
+        sys.exit("romgi's catalogue is not in the format this explorer reads:\n  - " + "\n  - ".join(drift_report.fatal))
+
     def scalar(sql, *args):
         return cur.execute(sql, args).fetchone()[0]
 
@@ -220,14 +235,20 @@ def build(db_path, *, local=False, version_json=None, history_json=None, profile
         "SELECT id, name, homepage, kind, auth_required, priority, manifest_json FROM sources")}
     health = {r[0]: r for r in cur.execute(
         "SELECT source_id, status, last_checked, reason, entry_count, link_count FROM source_health")}
-    assert set(src_rows) == set(SOURCE_ORDER), f"sources changed: {sorted(src_rows)}"
-    src_idx = {s: i for i, s in enumerate(SOURCE_ORDER)}
+    known = [s for s in SOURCE_ORDER if s in src_rows]
+    added = sorted((s for s in src_rows if s not in SOURCE_ORDER), key=lambda s: (src_rows[s][5] or 0, s))
+    source_ids = known + added
+    if len(source_ids) > MAX_SOURCES:
+        sys.exit(f"romgi lists {len(source_ids)} sources; this explorer handles at most {MAX_SOURCES}.")
+    free_slots = iter(range(len(SOURCE_ORDER), SOURCE_SLOTS))
+    slot_of = {sid: SOURCE_ORDER.index(sid) if sid in SOURCE_ORDER else next(free_slots, SOURCE_SLOTS) for sid in source_ids}
+    src_idx = {s: i for i, s in enumerate(source_ids)}
     sources = []
-    for sid in SOURCE_ORDER:
+    for sid in source_ids:
         r = src_rows[sid]
         h = health.get(sid)
         sources.append({
-            "id": sid, "name": r[1], "short": SOURCE_SHORT[sid], "homepage": r[2], "kind": r[3],
+            "id": sid, "name": r[1], "short": SOURCE_SHORT.get(sid) or r[1] or sid, "slot": slot_of[sid], "homepage": r[2], "kind": r[3],
             "auth_required": r[4], "priority": r[5], "manifest": json.loads(r[6] or "{}"),
             "health": None if not h else {
                 "status": h[1], "last_checked": h[2], "reason": h[3], "entries": h[4], "links": h[5]},
@@ -350,7 +371,7 @@ def build(db_path, *, local=False, version_json=None, history_json=None, profile
     # The size class of each link (0 unknown, 1-5 by size, 6 suspect). The page needs the class to start and the exact size only for
     # totals and the size column, so the sizes can arrive later. size_bucket() is the reference the page and the printed SQL follow.
     plat_ids = [p["id"] for p in platforms]
-    l_sb = [size_bucket(r[4], SOURCE_ORDER[r[1]], plat_ids[e_plat[r[0]]]) for r in lrows]
+    l_sb = [size_bucket(r[4], source_ids[r[1]], plat_ids[e_plat[r[0]]]) for r in lrows]
     l_pack = [r[6] for r in lrows]
     l_tidx = [r[7] for r in lrows]
     l_auth = [i for i, r in enumerate(lrows) if r[5]]
@@ -608,7 +629,7 @@ def build_quality(cur, scalar, meta, vj, history, flag_counts, n_moji, nE, nL, s
 
     # 10. duplicate titles
     dup = scalar("SELECT COUNT(*) FROM (SELECT 1 FROM entries GROUP BY platform, title HAVING COUNT(*) > 1) ")
-    dup_rows = scalar("SELECT SUM(c) FROM (SELECT COUNT(*) c FROM entries GROUP BY platform, title HAVING COUNT(*) > 1)")
+    dup_rows = scalar("SELECT SUM(c) FROM (SELECT COUNT(*) c FROM entries GROUP BY platform, title HAVING COUNT(*) > 1)") or 0      # SUM of nothing is NULL
     add("dups", "info", "Same title, several entries",
         f"{dup:,} platform and title pairs appear more than once ({dup_rows:,} rows). They are regional or revision variants with "
         "different slugs, so counting entries is not counting games.",

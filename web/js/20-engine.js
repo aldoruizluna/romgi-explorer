@@ -13,8 +13,7 @@ function makeFacets(D) {
   const { E, dims } = D;
   const regNames = [...dims.regions.map(r => r.name), 'No region'];
   const srcName = s => dims.sources[s].short;
-  const ABBR = { minerva: 'MiNERVA', internet_archive: 'IA', nopaystation: 'NoPS', mariocube: 'MarioCube' };
-  const comboName = m => D.comboSources(m).map(s => ABBR[dims.sources[s].id] || srcName(s)).join(' + ');
+  const comboName = m => D.comboSources(m).map(s => D.srcAbbr(s)).join(' + ');
   const comboFull = m => D.comboSources(m).map(srcName).join(' + ');
   const F = [];
   F.push({ id: 'brand', label: 'Brand', group: 'catalog', level: 'e', kind: 'single', n: dims.brands.length, col: E.brand, open: true,
@@ -31,7 +30,7 @@ function makeFacets(D) {
   F.push({ id: 'ini', label: 'Starts with', group: 'catalog', level: 'e', kind: 'single', n: 28, col: E.initial, name: initialName, layout: 'alpha',
     pred: v => (v === 0 ? "NOT (upper(substr(trim(e.title), 1, 1)) BETWEEN 'A' AND 'Z' OR substr(trim(e.title), 1, 1) BETWEEN '0' AND '9')"
       : v === 1 ? "substr(trim(e.title), 1, 1) BETWEEN '0' AND '9'" : `upper(substr(trim(e.title), 1, 1)) = ${sq(initialName(v))}`) });
-  F.push({ id: 'avail', label: 'Offered by', group: 'coverage', level: 'e', kind: 'single', n: 16, col: E.smask, name: comboName, fullName: comboFull, layout: 'combo', skip0: true,
+  F.push({ id: 'avail', label: 'Offered by', group: 'coverage', level: 'e', kind: 'single', n: 1 << dims.sources.length, col: E.smask, name: comboName, fullName: comboFull, layout: 'combo', skip0: true,
     hint: 'Which sources carry the entry, over all its links',
     pred: v => {
       const inn = D.comboSources(v), ids = inn.map(x => sq(dims.sources[x].id)).join(', ');
@@ -49,7 +48,7 @@ function makeFacets(D) {
     pred: v => `e.slug ${v ? '' : 'NOT '}IN (SELECT entry FROM entry_group_members)` });
   // ---- link level
   const L = D.L;
-  F.push({ id: 'src', label: 'Source', group: 'files', level: 'l', kind: 'single', n: dims.sources.length, col: L.src, open: true, name: srcName, color: v => `var(--src-${v})`,
+  F.push({ id: 'src', label: 'Source', group: 'files', level: 'l', kind: 'single', n: dims.sources.length, col: L.src, open: true, name: srcName, color: v => D.srcVar(v),
     pred: v => `l.source_id = ${sq(dims.sources[v].id)}`, inSql: { expr: 'l.source_id', lit: v => sq(dims.sources[v].id) } });
   F.push({ id: 'type', label: 'Link type', group: 'files', level: 'l', kind: 'single', n: dims.types.length, col: L.type, name: v => dims.types[v],
     pred: v => (dims.types[v] === 'Game (multi-part)' ? "l.type LIKE 'Game #%'" : `l.type = ${sq(dims.types[v])}`) });
