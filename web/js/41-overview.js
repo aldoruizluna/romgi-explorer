@@ -26,7 +26,30 @@ function simpleBars(id, title, sub, opt = {}) {
   return chartCard({ id: 'bars-' + id, cls: opt.cls || 's4', title, sub, body, twin });
 }
 
+/** The "Indexed size" tile: a loading mark until the exact sizes have arrived. */
+const sizeTile = (k, D) => {
+  const t = (v, s) => `<div class="card kpi" id="kpi-size"><div class="l">${icon('db', 14)}Indexed size</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+  return D.detailReady ? t(k.bytes ? fmtBytes(k.bytes) : '0 B', k.susp ? `${fmtN(k.susp)} suspect sizes left out` : 'every size counted')
+    : t('<span class="muted" role="status" aria-label="Loading">…</span>', k.susp ? `${fmtN(k.susp)} suspect sizes left out` : 'arriving with the titles');
+};
+
 App.views.overview = {
+  /** The exact sizes arrived: fill in the size tile and unlock the Size toggle without redrawing the whole overview. */
+  patchDetail() {
+    const el = $('#kpi-size');
+    if (!el) return App.renderView();
+    el.outerHTML = sizeTile(App.S.kpis(), App.D);
+    const btn = $('[data-act="tm"][data-m="bytes"]');
+    if (btn) { btn.disabled = false; btn.removeAttribute('data-tip'); }
+    if (App.ui.treemap === 'bytes') App.renderView();                     // the chart itself changes what it measures
+  },
+  /** Titles and cover paths are in: the daily shelf appears where its slot is, and only its covers start loading. */
+  fillPicks() {
+    const slot = $('#picks-slot');
+    if (!slot) { if (!App.S.anyActive()) App.renderView(); return; }
+    slot.innerHTML = picksHTML();
+    Covers.watch(slot);
+  },
   render(root) {
     const { S, D } = App, k = S.kpis(), b = S.baseK, g = S.state.grain, dims = D.dims;
     const inView = g === 'entries' ? k.entries : k.links, inBase = g === 'entries' ? b.entries : b.links;
@@ -41,8 +64,7 @@ App.views.overview = {
       ${tile('Platforms', fmtN(k.platforms), `of ${fmtN(dims.platforms.length)}`, 'grid')}
       ${tile('Distinct titles', fmtN(k.titles), `of ${fmtN(D.nTitles)} by platform`, 'tag')}
       ${tile('Links per entry', k.perEntry.toFixed(2), `catalogue ${b.perEntry.toFixed(2)}`, 'layers')}
-      ${D.detailReady ? tile('Indexed size', k.bytes ? fmtBytes(k.bytes) : '0 B', k.susp ? `${fmtN(k.susp)} suspect sizes left out` : 'every size counted', 'db')
-        : tile('Indexed size', '<span class="muted" role="status" aria-label="Loading">…</span>', k.susp ? `${fmtN(k.susp)} suspect sizes left out` : 'arriving with the titles', 'db')}
+      ${sizeTile(k, D)}
       ${tile('With achievements', fmtN(k.ra), `${fmtN(k.ach)} in total`, 'trophy')}</div>`;
 
     // treemap
@@ -90,7 +112,7 @@ App.views.overview = {
       twin: twinHTML([{ label: 'Measure' }, { label: 'Count', right: true }, { label: 'Of', right: true }], [['Box art', fmtN(k.art), fmtN(k.entries)], ['Serial', fmtN(k.ser), fmtN(k.entries)], ['RetroAchievements', fmtN(k.ra), fmtN(k.entries)], ['2+ sources', fmtN(multi), fmtN(k.entries)], ['BitTorrent links', fmtN(dl[1]), fmtN(k.links)]]),
     });
 
-    const shelves = S.anyActive() ? '' : collectionsHTML() + picksHTML();
+    const shelves = S.anyActive() ? '' : collectionsHTML() + `<div id="picks-slot" class="slot">${picksHTML()}</div>`;
     const held = App.heldHTML();
     root.innerHTML = `<div class="grid">${held ? `<div class="s12">${held}</div>` : ''}${hero}${kp}${shelves}${tmCard}${mixCard}
       ${simpleBars('reg', 'Regions', 'An entry can belong to up to three.', { sort: false })}

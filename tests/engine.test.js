@@ -135,6 +135,22 @@ for (let round = 0; round < rounds; round++) {
 S.state = { grain: 'entries', q: '', f: {} }; S.changed();
 expect('empty slice entries', S.res.nVisE, one('SELECT COUNT(*) FROM entries'));
 expect('empty slice links', S.res.nVisL, one('SELECT COUNT(*) FROM links'));
+// with nothing filtered the tallies made at start stand in for a count; they must equal one
+for (const grain of ['entries', 'links']) {
+  S.state = { grain, q: '', f: {} }; S.changed();
+  for (const f of S.facets) expect(`unfiltered ${grain} counts of ${f.id}`, JSON.stringify(Array.from(S.counts(f.id))), JSON.stringify(Array.from(S.countFacet(f))));
+}
+S.state = { grain: 'entries', q: '', f: {} }; S.changed();
+const fastK = JSON.stringify(S.kpis()); S.baseK = null; S.cache = {};
+expect('unfiltered headline numbers', fastK, JSON.stringify(S.kpis()));
+// counting a collection leaves the slice alone, and counting several in a row (as the page does at start) agrees with counting each alone
+S.state = { grain: 'entries', q: '', f: {} }; S.changed();
+const alone = api.COLLECTIONS.map(c => { const p = api.resolvePreset(c.preset, D); return p ? JSON.stringify(S.countPreset(p)) : null; });
+const keep = { state: S.state, cache: S.cache }; const together = [];
+for (const c of api.COLLECTIONS) { const p = api.resolvePreset(c.preset, D); together.push(p ? JSON.stringify(S.countPresetHere(p)) : null); }
+S.state = keep.state; S.cache = keep.cache; S.recompute();
+expect('collections counted in a row equal collections counted alone', JSON.stringify(together), JSON.stringify(alone));
+expect('... and the slice is back to empty', S.res.nVisE, one('SELECT COUNT(*) FROM entries'));
 // every hand-picked collection: its counts equal the SQL for the slice it sets, and counting it leaves the current slice alone
 for (const c of api.COLLECTIONS) {
   const preset = api.resolvePreset(c.preset, D);

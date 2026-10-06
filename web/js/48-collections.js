@@ -42,13 +42,16 @@ function resolvePreset(p, D) {
 /** Resolve and count every collection once, in slices (the counts do not depend on the slice you are looking at). */
 function* collectionSteps() {
   App._colls = [];
-  for (const c of COLLECTIONS) {
-    const preset = resolvePreset(c.preset, App.D);
-    if (!preset) continue;
-    const count = App.S.countPreset(preset);
-    if ((preset.grain === 'links' ? count.links : count.entries) > 0) App._colls.push({ ...c, preset, count });
-    yield;
-  }
+  const S = App.S, keep = { state: S.state, cache: S.cache };
+  try {
+    for (const c of COLLECTIONS) {
+      const preset = resolvePreset(c.preset, App.D);
+      if (!preset) continue;
+      const count = S.countPresetHere(preset);          // the slice stays on the last preset between steps (the page is not drawn yet); restored below
+      if ((preset.grain === 'links' ? count.links : count.entries) > 0) App._colls.push({ ...c, preset, count });
+      yield;
+    }
+  } finally { S.state = keep.state; S.cache = keep.cache; S.recompute(); }
 }
 
 function collectionsHTML() {

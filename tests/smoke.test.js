@@ -58,6 +58,11 @@ const server = http.createServer((req, res) => {
     const placeholder = await page.evaluate(() => document.querySelector('#q').placeholder);
     assert.ok(!/Loading/.test(placeholder), 'the search box still says it is loading: ' + placeholder);
     ok('titles and sizes arrived; the search box is awake');
+    await page.waitForFunction(() => App.artState === 'ready' || App.artState === 'failed' || App.artState === 'none', null, { timeout: 60000 });
+    const sizeTile = await page.evaluate(() => document.querySelector('#kpi-size .v')?.textContent || '');
+    assert.ok(/[KMGTP]iB/.test(sizeTile), 'the size tile never filled in: ' + sizeTile);
+    assert.ok(!(await page.$('[data-act="tm"][data-m="bytes"][disabled]')), 'the Size toggle is still disabled');
+    ok(`the overview filled in its size tile (${sizeTile}) and unlocked the Size toggle without a redraw`);
 
     // ---- search, then a filter changes the count
     await page.click('button.tab[data-v="browse"]');

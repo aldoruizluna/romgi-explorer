@@ -141,9 +141,14 @@ class Slicer {
   /** How many entries and links a preset shows, leaving the current slice alone. */
   countPreset(p) {
     const keep = { state: this.state, cache: this.cache };
-    this.state = this.stateOf(p); this.cache = {};
-    try { this.recompute(); return { entries: this.res.nVisE, links: this.res.nVisL }; }
+    try { return this.countPresetHere(p); }
     finally { this.state = keep.state; this.cache = keep.cache; this.recompute(); }
+  }
+  /** Like countPreset but leaves the preset's slice in place: for counting many in a row, restoring once at the end. */
+  countPresetHere(p) {
+    this.state = this.stateOf(p); this.cache = {};
+    this.recompute();
+    return { entries: this.res.nVisE, links: this.res.nVisL };
   }
   changed() { this.version++; this.cache = {}; this.recompute(); this.onChange && this.onChange(); }
   serialize() {
@@ -213,7 +218,13 @@ class Slicer {
     this.ms = performance.now() - t0;
   }
   /** Facet counts are computed on first use, so collapsed groups cost nothing. */
-  counts(id) { const c = this.res.counts; return c[id] || (c[id] = this.countFacet(this.byId[id])); }
+  counts(id) {
+    const c = this.res.counts;
+    if (c[id]) return c[id];
+    const base = this.base[this.state.grain];
+    if (base && base[id] && !this.anyActive()) return (c[id] = base[id]);      // nothing is filtered: the tally made at start is the answer
+    return (c[id] = this.countFacet(this.byId[id]));
+  }
 
   countFacet(f) {
     const { E, L, res } = this, grain = this.state.grain, n = f.n, extra = f.noneExtra ? 1 : 0;
@@ -465,6 +476,8 @@ class Slicer {
   /* ---------------------------------------------------------- headline numbers for the current slice */
   kpis() {
     if (this.cache.k) return this.cache.k;
+    const sized = !!this.L.size, free = !this.anyActive();                   // free: no filter and no query, so the slice is the whole catalogue
+    if (free && this.baseK && this.baseK.sized === sized) return (this.cache.k = this.baseK);
     const { E, L, res, D } = this;
     const seenT = new Uint8Array(D.nTitles), plats = new Uint8Array(D.dims.platforms.length), srcs = new Uint8Array(D.dims.sources.length);
     let titles = 0, ra = 0, ach = 0, art = 0, ser = 0, bytes = 0, susp = 0, withSize = 0;
@@ -484,8 +497,10 @@ class Slicer {
       if (b >= 1 && b <= 5) { if (size) bytes += size[l]; withSize++; } else if (b === 6) susp++;
     }
     const sum = a => a.reduce((x, y) => x + y, 0);
-    return (this.cache.k = { entries: res.nVisE, links: res.nVisL, titles, platforms: sum(plats), sources: sum(srcs), ra, ach, art, ser, bytes, susp, withSize,
-      perEntry: res.nVisE ? res.nVisL / res.nVisE : 0 });
+    const k = { entries: res.nVisE, links: res.nVisL, titles, platforms: sum(plats), sources: sum(srcs), ra, ach, art, ser, bytes, susp, withSize, sized,
+      perEntry: res.nVisE ? res.nVisL / res.nVisE : 0 };
+    if (free) this.baseK = k;
+    return (this.cache.k = k);
   }
 
   /* ---------------------------------------------------------- SQL that reproduces the slice */

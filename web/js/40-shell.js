@@ -30,7 +30,7 @@ const App = {
     this.ui.twin = []; this.ui.find = {};
   },
   saveUI: debounce(() => store.set('ui', App.ui), 250),
-  mount() {
+  async mount() {
     const { D, S } = this;
     $('#roll-ic').innerHTML = icon('dice', 16);
     $('#help-ic').innerHTML = icon('help', 16);
@@ -39,18 +39,23 @@ const App = {
     q.dataset.ph = q.placeholder;
     if (!D.detailReady) { q.disabled = true; q.placeholder = 'Loading titles…'; }
     $('#ver').innerHTML = `<i class="fd" id="fd" aria-hidden="true"></i>${esc(`${D.meta.version} · schema v${D.meta.schema_version ?? '?'}`)}`;
-    S.onChange = () => this.schedule();
     S.state.grain = store.get('grain', 'entries') === 'links' ? 'links' : 'entries';
     S.changed();
+    S.onChange = () => this.schedule();            // after the first changed(): that one is drawn below, not scheduled a second time
     this.buildRail(); this.renderTabs(); this.bind();
-    this.refresh();
+    await yieldToMain();                            // the shell is up; the rest is drawn in two more short tasks, not one long one
+    this.updateRail(); this.renderScope(); this.renderTabs();
+    await yieldToMain();
+    this.renderView();
+    if (this.sel != null) Drawer.refresh();
   },
   /** The titles and sizes have arrived: wake the search box, drop the totals that were worked out without sizes, redraw, and only now fetch the covers. */
   detailReady() {
     const q = $('#q');
     q.disabled = false; q.placeholder = q.dataset.ph || q.placeholder;
     this.S.cache = {};
-    this.renderView();
+    const v = this.views[this.ui.view];
+    if (v.patchDetail) v.patchDetail(); else this.renderView();         // the overview only needs its size tile; the other views are redrawn
     loadArt();
   },
   /** Progress of the title download: the search placeholder and, in Browse, the bar. */
@@ -64,7 +69,8 @@ const App = {
   /** The cover paths have arrived (or failed): redraw what shows covers. */
   artReady() {
     if (!this.D) return;
-    if (this.ui.view === 'overview' || (this.ui.view === 'browse' && this.ui.browse.mode === 'gallery')) this.renderView();
+    if (this.ui.view === 'overview') App.views.overview.fillPicks();
+    else if (this.ui.view === 'browse' && this.ui.browse.mode === 'gallery') this.renderView();
     if (this.sel != null) Drawer.render();
   },
   aboutText() {
@@ -357,7 +363,7 @@ async function boot() {
     App.S = new Slicer(App.D, { defer: true });
     await runSliced(App.S.baseSteps());
     await runSliced(collectionSteps());
-    App.mount();
+    await App.mount();
     Loader.done();
     if (App.D.detailReady) loadArt(); else loadDetail();      // not awaited: the page already works; titles, then covers, follow
     checkFreshness();                // likewise: a dot beside the version

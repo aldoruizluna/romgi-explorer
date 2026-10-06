@@ -205,7 +205,8 @@ function* attachDetailSteps(D, part) {
   const E = D.E, L = D.L, pe = part.entries, pl = part.links;
   if (pe.title.length !== E.n || pl.size.length !== L.n) throw new Error('The titles and sizes do not belong to this catalogue. Reload the page.');
   E.title = pe.title; E.rom = pe.rom; yield;
-  L.tidx = new Int32Array(pl.tidx); L.size = new Float64Array(pl.size); yield;
+  L.tidx = new Int32Array(pl.tidx); yield;
+  L.size = new Float64Array(pl.size); yield;                 // two steps: each copy is a few dozen milliseconds
   const sum = new Float64Array(E.n);                 // an entry's size: its links with a plausible size, added up
   for (let i = 0; i < E.n; i++) {
     let t = 0;

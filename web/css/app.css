@@ -277,6 +277,9 @@ select:focus, .input:focus { outline: none; border-color: var(--accent); box-sha
 .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
 .s3 { grid-column: span 3; } .s4 { grid-column: span 4; } .s5 { grid-column: span 5; } .s6 { grid-column: span 6; }
 .s7 { grid-column: span 7; } .s8 { grid-column: span 8; } .s9 { grid-column: span 9; } .s12 { grid-column: span 12; }
+/* Cards below the fold are not laid out or painted until they scroll near (their last size is remembered), so the first draw is cheap. */
+.cv { content-visibility: auto; contain-intrinsic-size: auto 340px; }
+.slot { display: contents; }
 .card { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; box-shadow: var(--card-hi); }
 .card-h { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
 .card-h h3 { margin: 0; font: 600 14px/1.2 var(--font-ui); }

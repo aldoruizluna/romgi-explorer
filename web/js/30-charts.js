@@ -7,7 +7,7 @@ Tip.showAt = function (node, x, y) {
 /** A chart card. `twin` is the accessible table version of the same numbers; the Table button swaps to it. */
 function chartCard({ id, cls = '', title, sub = '', acts = '', body, twin }) {
   const showTwin = App.ui.twin.includes(id);
-  return `<section class="card ${cls}" data-card="${esc(id)}">
+  return `<section class="card cv ${cls}" data-card="${esc(id)}">
     <div class="card-h"><div><h3>${esc(title)}</h3>${sub ? `<p>${esc(sub)}</p>` : ''}</div>
       <div class="acts">${acts}${twin ? `<button class="btn sm ghost" data-act="twin" data-id="${esc(id)}" aria-pressed="${showTwin}" data-tip="Show the same numbers as a table">${icon('table', 14)}<span>Table</span></button>` : ''}</div></div>
     <div class="viz"${showTwin ? ' hidden' : ''}>${body}</div>
