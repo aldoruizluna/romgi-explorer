@@ -85,6 +85,11 @@ node tests/engine.test.js data/romdb.db dist/dataset.snapshot.json.gz 40
 The first checks every flag, size class, region, source, pack and format count against SQL. The second draws random slices,
 filters and cross-tabs through the browser engine and compares each result with the SQL the UI prints.
 
+## License
+
+The explorer's code is [MIT](LICENSE). The catalogue it reads belongs to romgi and the sources it indexes; the license covers this
+repository's code only.
+
 ## Notes
 
 The catalogue is distributed by romgi for use in romgi; its README says forks and derivative tools are not supported. The local
