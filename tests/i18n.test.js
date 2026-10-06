@@ -85,7 +85,7 @@ for (const f of fs.readdirSync(jsDir).filter(x => x.endsWith('.js')).sort()) {
 const DYNAMIC_OK = [/^__\(g\.label\)/, /^__\(t\.label\)/, /^__\(c\.label\)/, /^__\(c\.title\)/, /^__\(c\.blurb\)/, /^__\(x\.label\)/, /^__\(l\)/, /^__\(q\.label\)/, /^__\(m\.label\)/,
   /^__\(SEV\[s\]\.label\)/, /^__\(e\.title\)/, /^__\(e\.note\)/, /^__\(x\.kind\)/, /^__\(h\.status\)/, /^__\(k\)/, /^__\(b\.note\)/, /^__\(NL_NAMES\[v\]\)/, /^__\(RA_NAMES\[v\]\)/,
   /^__\(ART_NAMES\[v\]\)/, /^__\(Live\.phase\)/, /^__\(f\.label\)/, /^__\(s\.label\)/, /^__\(s\.hint\)/, /^__\(r\.name\)/, /^__\(x\)/, /^__\(el\.textContent/, /^__\(el\.getAttribute/,
-  /^__\(known/, /^__\(msg/, /^__\(SEV/, /^__\(QUALITY/, /^__\(what\)/, /^__\(\)/];
+  /^__\(known/, /^__\(msg/, /^__\(SEV/, /^__\(QUALITY/, /^__\(what\)/, /^__\(p\.label\)/, /^__\(\)/];
 for (const d of dynamic) if (!DYNAMIC_OK.some(r => r.test(d.expr))) fail(`${d.f}:${d.line}: ${d.expr} reads a message from a variable that this test does not know; mark its table with N_() and allow it here`);
 
 // ---- messages the dataset builder writes
@@ -119,7 +119,7 @@ const es = (win.ROMGI_LANGS || {}).es || {};
 const names = s => [...s.matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort().join(',');
 const tags = s => [...s.matchAll(/<\/?([a-z0-9]+)/gi)].map(m => m[1].toLowerCase()).sort().join(',');
 // terms a Spanish speaker uses as they are: a name, a file format, or a word the Spanish borrows
-const SAME_OK = new Set(['Total', 'Aftermarket', 'Xbox Live', 'Nintendo digital']);
+const SAME_OK = new Set(['Total', 'Aftermarket', 'Xbox Live', 'Nintendo digital', '{label}: {title}']);
 const ENGLISH = /(?<!\p{L})(the|and|with|from|that|this|your|for|are|is|of the|in the|not|you|can)(?!\p{L})/u;      // \b would see a letter with an accent as a word edge
 let translated = 0, missing = [];
 for (const [k, v] of all) {

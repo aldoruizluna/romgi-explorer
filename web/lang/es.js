@@ -618,4 +618,8 @@
   "Help and shortcuts (?)": "Ayuda y atajos (?)",
   "Views": "Vistas",
   "Entry details": "Detalles de la entrada",
+  "Title screen": "Pantalla de título",
+  "In game": "En el juego",
+  "Pictures": "Imágenes",
+  "{label}: {title}": "{label}: {title}",
 };

@@ -131,6 +131,29 @@ const server = http.createServer((req, res) => {
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.querySelector('.drawer.open') && !/[?&]c=/.test(location.hash), null, { timeout: 5000 });
     ok('the open card is in the address; back closes it, forward reopens it, and the link opens the same entry in another tab');
+    // ---- a game whose cover comes from libretro also gets its title screen and an in-game picture, when libretro has them
+    const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    const asked = [];
+    await page.route(/thumbnails\.libretro\.com\/.*\/Named_(Snaps|Titles)\//, route => {
+      const u = route.request().url(); asked.push(u);
+      return /Named_Snaps/.test(u) ? route.fulfill({ status: 200, contentType: 'image/png', body: PNG }) : route.fulfill({ status: 404, body: 'no' });
+    });
+    const [withArt, without] = await page.evaluate(() => { const E = App.D.E, a = [-1, -1]; for (let i = 0; i < E.n && (a[0] < 0 || a[1] < 0); i++) { if (E.artk[i] === 2 && a[0] < 0) a[0] = i; else if (E.artk[i] !== 2 && a[1] < 0) a[1] = i; } return a; });
+    assert.ok(withArt >= 0 && without >= 0, 'no entry with libretro art, or none without');
+    await page.evaluate(i => Drawer.open(i), withArt);
+    await page.waitForSelector('#drawer .pics:not([hidden])', { timeout: 15000 });
+    const pics = await page.evaluate(() => [...document.querySelectorAll('#drawer figure[data-pic]:not([hidden])')].map(f => [f.dataset.pic, f.querySelector('figcaption').textContent]));
+    assert.strictEqual(pics.length, 1, 'only the in-game picture exists, but the card shows ' + JSON.stringify(pics));
+    assert.ok(/\/Named_Snaps\//.test(pics[0][0]) && !/Named_Boxarts/.test(pics[0][0]) && pics[0][1] === 'In game', 'the picture is not the in-game one: ' + JSON.stringify(pics));
+    await page.evaluate(i => Drawer.open(i), withArt);                                          // again: the title screen that was not found is not asked for twice
+    await page.waitForSelector('#drawer .pics:not([hidden])', { timeout: 15000 });
+    assert.strictEqual(await page.evaluate(() => document.querySelectorAll('#drawer figure[data-pic]').length), 1, 'a picture that was not found is offered again');
+    assert.strictEqual(asked.filter(u => /Named_Titles/.test(u)).length, 1, 'the missing title screen was asked for more than once');
+    await page.evaluate(i => Drawer.open(i), without);
+    assert.ok(!(await page.$('#drawer .pics')), 'a game without libretro art has a pictures section');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.drawer.open'), null, { timeout: 5000 });
+    ok('a card with libretro art shows the in-game picture that exists, never asks twice for the title screen that does not, and a card without it has no pictures');
     // a link naming something this catalogue has not got still opens the page
     const odd = await ctx.newPage();
     odd.on('pageerror', e => problems.push('script error (odd link): ' + e.message));

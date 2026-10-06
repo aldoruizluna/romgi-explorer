@@ -491,6 +491,11 @@ select:focus, .input:focus { outline: none; border-color: var(--accent); box-sha
 .lk-row .sz { font: 500 12px/1 var(--font-mono); color: var(--ink); text-align: right; white-space: nowrap; }
 /* one entry among the editions of a game: regions, what sets it apart, who offers it, how big */
 .eds-chip { margin-left: 6px; font: 600 10.5px/1 var(--font-mono); color: var(--accent-text); background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 9px; padding: 2px 6px; white-space: nowrap; }
+.pic-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.pic-row figure { margin: 0; display: grid; gap: 5px; align-content: start; }
+.pic-row figure[hidden], .pics[hidden] { display: none; }
+.pic-row img { display: block; width: 100%; height: auto; border-radius: var(--r-s); border: 1px solid var(--line); background: var(--panel-3); }
+.pic-row figcaption { font: 500 11px/1.2 var(--font-mono); color: var(--ink-3); }
 .eds { display: grid; gap: 4px; }
 .ed { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--r-s); border: 1px solid var(--line); background: var(--panel-2); text-align: left; }
 .ed:hover { border-color: var(--ink-4); }

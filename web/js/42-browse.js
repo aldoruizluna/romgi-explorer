@@ -82,6 +82,13 @@ const Covers = {
 // covers fade in when they have loaded; one that fails leaves the placeholder showing (load and error do not bubble, so listen while capturing)
 document.addEventListener('load', e => { if (e.target.tagName === 'IMG' && e.target.closest('.gcard .art')) e.target.classList.add('in'); }, true);
 document.addEventListener('error', e => { if (e.target.tagName === 'IMG' && e.target.closest('.gcard .art')) e.target.remove(); }, true);
+/** More pictures for an entry whose cover comes from libretro's thumbnails: the same path in the folder of title screens and of in-game
+ *  screenshots. Not every game has them (a missing one just leaves its place empty), and one that failed once is not asked for again. */
+const DEAD_PICS = new Set();
+const picsOf = i => {
+  const D = App.D, url = D.caps.art && D.E.artk[i] === 2 ? D.artUrl(i) : null;
+  return url ? [['Named_Titles', N_('Title screen')], ['Named_Snaps', N_('In game')]].map(([dir, label]) => ({ url: url.replace('/Named_Boxarts/', '/' + dir + '/'), label })) : [];
+};
 const GAL_SORTS = { ra: ['ra', -1, N_('Most achievements')], title: ['title', 1, N_('A to Z')], sources: ['sources', -1, N_('Most sources')], size: ['size', -1, N_('Largest')] };
 /** The entries the gallery shows: the slice, in the chosen order, optionally only those that have box art. */
 function galleryIds() {
@@ -233,6 +240,15 @@ const Drawer = {
     Url.sync(false);
   },
   refresh() { /* the card does not depend on the slice */ },
+  /** Ask for the pictures when the card opens, never before; each appears where it arrives and the section only once there is one. */
+  loadPics(i) {
+    for (const fig of $$('#drawer figure[data-pic]')) {
+      const url = fig.dataset.pic, img = $('img', fig);
+      img.onload = () => { img.style.imageRendering = img.naturalWidth <= 320 ? 'pixelated' : 'auto'; fig.hidden = false; fig.closest('.pics').hidden = false; };
+      img.onerror = () => { DEAD_PICS.add(url); };
+      img.src = url;
+    }
+  },
   step(dir) {
     const ids = App.S.visIdx('entries'); if (!ids.length) return;
     let lo = 0, hi = ids.length;
@@ -254,7 +270,7 @@ const Drawer = {
     const i = App.sel, { D } = App, E = D.E, L = D.L, p = D.platformOf(i), slug = D.slugOf(i), fixed = D.fixTitle(i);
     const flags = D.flagLabels(i), regs = D.regIds(i), g = D.groupOf(i), [a, z] = D.entryLinks(i);
     const url = D.caps.art ? D.artUrl(i) : null;
-    const eds = D.famMembers(i).filter(j => j !== i);
+    const eds = D.famMembers(i).filter(j => j !== i), pics = picsOf(i).filter(p => !DEAD_PICS.has(p.url));
     const edLabel = j => { const tags = (D.titleShown(j).match(/[\(\[][^\)\]]*[\)\]]/g) || []).join(' '); return tags || __('standard'); };
     const srcs = D.comboSources(E.smask[i]);
     const links = [];
@@ -289,6 +305,7 @@ const Drawer = {
           ${E.ra[i] ? `<div><dt>RetroAchievements</dt><dd><a href="https://retroachievements.org/game/${E.ra[i]}" target="_blank" rel="noopener">${esc(__('Game {id}', { id: String(E.ra[i]) }))} ${icon('ext', 12)}</a><br><span class="muted">${esc(__n(E.ran[i], '{n} achievement|{n} achievements'))}</span></dd></div>` : ''}
           <div><dt>${__('Box art')}</dt><dd>${[__('None matched'), 'GameTDB', 'libretro'][E.artk[i]]}</dd></div>
         </dl>
+        ${pics.length ? `<section class="pics" hidden><h3 class="sec-h">${icon('image', 14)}${__('Pictures')}</h3><div class="pic-row">${pics.map(p => `<figure hidden data-pic="${esc(p.url)}"><a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer"><img alt="${esc(__('{label}: {title}', { label: __(p.label), title: D.titleShown(i) }))}" referrerpolicy="no-referrer" decoding="async"></a><figcaption>${esc(__(p.label))}</figcaption></figure>`).join('')}</div></section>` : ''}
         <section><h3 class="sec-h">${icon('link', 14)}${__('Links')}<span class="eyebrow">${esc(__('{n} in the catalogue', { n: links.length }))}</span></h3><div class="lk">${lk}</div>
           ${D.caps.sql ? '' : `<div class="notice info" style="margin-top:10px">${icon('info', 16)}<div>${__('File names, URLs and raw rows appear when the explorer runs locally against the database.')}</div></div>`}</section>
         ${g ? `<section><h3 class="sec-h">${icon('disc', 14)}${__('Disc set')}<span class="eyebrow">${esc(g.title)}</span></h3><div class="sib">${g.members.map(([j, lab]) => `<button class="${j === i ? 'cur' : ''}" data-act="open" data-i="${j}">${esc(lab)}</button>`).join('')}</div></section>` : ''}
@@ -296,6 +313,7 @@ const Drawer = {
         <section><h3 class="sec-h">${icon('code', 14)}${__('This entry in SQL')}</h3><div class="codebox"><pre>${hiSQL(sqlEntry)}</pre><div class="copy"><button class="btn sm" data-act="copy" data-text="${esc(sqlEntry)}">${icon('copy', 13)}${__('Copy')}</button></div></div></section>
         <section class="raw" hidden><h3 class="sec-h">${icon('db', 14)}${__('Raw rows')}</h3><div class="codebox"><pre></pre></div></section>
       </div>`;
+    this.loadPics(i);
     const img = $('.dr-art img'); if (img) { img.addEventListener('error', () => { img.remove(); $('.dr-art .ph').hidden = false; }); }
     this.detail(i).then(d => {
       if (!d || App.sel !== i) return;
