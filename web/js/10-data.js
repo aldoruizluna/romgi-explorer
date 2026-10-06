@@ -1,0 +1,129 @@
+/* ============================================================ data: load the catalogue and derive the arrays the engine scans */
+const KiB = 1024, MiB = 1048576, GiB = 1073741824, TiB = 1099511627776;
+const SIZE_EDGES = [512 * KiB, 16 * MiB, 700 * MiB, Math.floor(4.7 * GiB)];
+
+async function loadDataset(onPhase) {
+  if (window.ROMGI.mode === 'local') {
+    onPhase('Reading the catalogue from your database');
+    const r = await fetch('/api/dataset');
+    if (!r.ok) throw new Error('The local server answered ' + r.status);
+    return r.json();
+  }
+  if (typeof DecompressionStream === 'undefined') throw new Error('This browser cannot unpack the catalogue. Use a current Chrome, Edge, Firefox or Safari.');
+  onPhase('Unpacking catalogue');
+  await sleep(40);
+  const b64 = document.getElementById('romgi-data').textContent.trim();
+  const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const text = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+  onPhase('Reading records');
+  await sleep(20);
+  return JSON.parse(text);
+}
+
+const slugifyAscii = t => t.toLowerCase().replace(/&/g, ' and ').replace(/\+/g, ' plus ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const ASCII_ONLY = /^[\x00-\x7f]*$/;
+
+function prepare(raw) {
+  const dims = raw.dims, re = raw.entries, rl = raw.links, nE = re.n, nL = rl.n;
+  const E = {
+    n: nE, title: re.title, rom: re.rom, art: re.art || null,
+    platform: Uint8Array.from(re.platform), reg: Uint8Array.from(re.reg), ra: Uint32Array.from(re.ra), ran: Uint16Array.from(re.ran),
+    flags: Uint32Array.from(re.flags), nl: Uint16Array.from(re.nl), artk: Uint8Array.from(re.artk), group: Int16Array.from(re.group),
+  };
+  const L = {
+    n: nL, src: Uint8Array.from(rl.src), type: Uint8Array.from(rl.type), fmt: Uint8Array.from(rl.fmt),
+    size: Float64Array.from(rl.size), pack: Int16Array.from(rl.pack), tidx: Int32Array.from(rl.tidx),
+  };
+  const slugX = new Map(Object.entries(re.slug_x).map(([k, v]) => [+k, v]));
+  const fixes = new Map(Object.entries(re.fix).map(([k, v]) => [+k, v]));
+
+  // entry -> link offsets, link -> entry
+  E.start = new Uint32Array(nE + 1);
+  for (let i = 0; i < nE; i++) E.start[i + 1] = E.start[i] + E.nl[i];
+  if (E.start[nE] !== nL) throw new Error('Link offsets do not add up: the dataset is damaged.');
+  L.eo = new Uint32Array(nL);
+  for (let i = 0; i < nE; i++) for (let k = E.start[i]; k < E.start[i + 1]; k++) L.eo[k] = i;
+
+  // link-side derived columns
+  L.sb = new Uint8Array(nL);
+  L.deliv = new Uint8Array(nL);
+  L.pack8 = new Uint8Array(nL);
+  L.coll = new Uint8Array(nL);
+  const packColl = dims.packs.map(p => p.collection);
+  const sus = dims.suspect, susSrc = dims.sources.findIndex(s => s.id === sus.source), platLimit = dims.platforms.map(p => p.limit ?? Infinity);
+  for (let l = 0; l < nL; l++) {
+    const s = L.size[l];
+    let b;
+    if (!s) b = 0;
+    else if (s >= sus.tib || (L.src[l] === susSrc && s >= platLimit[E.platform[L.eo[l]]])) b = 6;   // a size no real copy could have
+    else { b = 1; for (const e of SIZE_EDGES) if (s >= e) b++; }
+    L.sb[l] = b;
+    const p = L.pack[l];
+    L.deliv[l] = p >= 0 ? 1 : 0;
+    L.pack8[l] = p >= 0 ? p : 255;
+    L.coll[l] = p >= 0 ? packColl[p] : 255;
+  }
+
+  // entry-side derived columns
+  const platBrand = dims.platforms.map(p => p.brand);
+  const REGLUT = new Uint8Array(125);
+  for (let c = 0; c < 125; c++) { let x = c, m = 0; while (x) { const r = x % 5 - 1; if (r >= 0) m |= 1 << r; x = Math.floor(x / 5); } REGLUT[c] = m || 16; }
+  E.brand = new Uint8Array(nE);
+  E.regBits = new Uint8Array(nE);
+  E.smask = new Uint8Array(nE);
+  E.nsrc = new Uint8Array(nE);
+  E.rab = new Uint8Array(nE);
+  E.nlb = new Uint8Array(nE);
+  E.hasSer = new Uint8Array(nE);
+  E.inGrp = new Uint8Array(nE);
+  E.initial = new Uint8Array(nE);
+  E.tkey = new Uint32Array(nE);
+  E.sumSize = new Float64Array(nE);
+  E.tl = new Array(nE);
+  const tmap = new Map();
+  for (let i = 0; i < nE; i++) {
+    const t = E.title[i];
+    E.brand[i] = platBrand[E.platform[i]];
+    E.regBits[i] = REGLUT[E.reg[i]];
+    let m = 0, sum = 0;
+    for (let k = E.start[i]; k < E.start[i + 1]; k++) { m |= 1 << L.src[k]; const b = L.sb[k]; if (b >= 1 && b <= 5) sum += L.size[k]; }
+    E.smask[i] = m;
+    E.nsrc[i] = (m & 1) + ((m >> 1) & 1) + ((m >> 2) & 1) + ((m >> 3) & 1);
+    E.sumSize[i] = sum;
+    const n = E.ran[i];
+    E.rab[i] = n === 0 ? 0 : n < 10 ? 1 : n < 25 ? 2 : n < 50 ? 3 : n < 100 ? 4 : n < 250 ? 5 : 6;
+    const nl = E.nl[i];
+    E.nlb[i] = nl <= 1 ? 0 : nl >= 5 ? 4 : nl - 1;
+    E.hasSer[i] = E.rom[i] !== '' ? 1 : 0;
+    E.inGrp[i] = E.group[i] >= 0 ? 1 : 0;
+    let k0 = 0; while (t.charCodeAt(k0) === 32) k0++;      // SQL trim() removes spaces only
+    const c = t.charCodeAt(k0);
+    E.initial[i] = c >= 65 && c <= 90 ? c - 63 : c >= 97 && c <= 122 ? c - 95 : c >= 48 && c <= 57 ? 1 : 0;
+    const key = E.platform[i] + '|' + t;
+    let v = tmap.get(key);
+    if (v === undefined) { v = tmap.size; tmap.set(key, v); }
+    E.tkey[i] = v;
+    E.tl[i] = ASCII_ONLY.test(t) ? t.toLowerCase() : asciiLower(t);
+  }
+
+  const D = { raw, dims, E, L, nTitles: tmap.size, meta: raw.meta, caps: raw.meta.caps, slugX, fixes };
+  D.platformOf = i => dims.platforms[E.platform[i]];
+  D.slugOf = i => slugX.get(i) ?? (slugifyAscii(E.title[i]) + '-' + dims.platforms[E.platform[i]].id + D.regIds(i).map(r => '-' + r).join(''));
+  D.regIds = i => { const out = []; let c = E.reg[i]; while (c) { out.push(dims.regions[c % 5 - 1].id); c = Math.floor(c / 5); } return out; };
+  D.flagLabels = i => { const out = []; const m = E.flags[i]; for (let b = 0; b < dims.flags.length; b++) if (m >> b & 1) out.push(dims.flags[b]); return out; };
+  D.artUrl = i => {
+    if (!E.art || !E.artk[i]) return null;
+    return (E.artk[i] === 1 ? 'https://art.gametdb.com/' : 'https://thumbnails.libretro.com/') + E.art[i];
+  };
+  D.fixTitle = i => fixes.get(i) || null;
+  D.titleShown = i => { const t = (fixes.get(i) || E.title[i]).replace(/^ +| +$/g, ''); return t || '(empty title)'; };
+  D.srcDot = s => `<i class="sd" style="--c:var(--src-${s})"></i>`;
+  D.comboSources = mask => dims.sources.map((_, s) => s).filter(s => mask >> s & 1);
+  D.entryLinks = i => [E.start[i], E.start[i + 1]];
+  D.groupOf = i => (E.group[i] >= 0 ? dims.groups[E.group[i]] : null);
+  D.sameTitle = i => { const out = []; const k = E.tkey[i]; for (let j = Math.max(0, i - 40); j < Math.min(nE, i + 41); j++) if (E.tkey[j] === k) out.push(j); return out; };
+  return D;
+}
+
+/** Title-case helpers for presenting dimension values. */
+const sizeLabel = (D, b) => D.dims.sizes[b].label;
