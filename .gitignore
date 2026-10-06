@@ -1,0 +1,10 @@
+# the catalogue itself is third-party data: download it with ./run.sh, never commit it
+data/romdb.db
+data/romdb.db.gz
+data/version.json
+# everything in dist/ is generated from it (python3 bundle.py, python3 build_dataset.py)
+dist/
+__pycache__/
+*.pyc
+.DS_Store
+node_modules/
