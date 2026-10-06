@@ -1,13 +1,15 @@
 # romgi catalogue explorer
 
+**Live: https://aldoruizluna.github.io/romgi-explorer/**
+
 A browser UI for the database behind [caprado/romgi](https://github.com/caprado/romgi) (`db/romdb.db.gz`): every entry, every link,
 and the metadata around them, sliceable and pivotable.
 
-Two ways to run it:
+Two ways to use it:
 
-| | Local explorer | Hosted snapshot |
+| | Local explorer | Hosted snapshot (the live site) |
 |---|---|---|
-| Data | your `romdb.db`, live | the 2026-10-04 snapshot, embedded in one HTML file |
+| Data | your `romdb.db`, live | the latest weekly catalogue, embedded in one HTML file and rebuilt every Monday |
 | SQL console, file names, URLs, torrent paths, box art, CSV download | yes | no |
 | Needs | Python 3.9+ (standard library only) | a browser |
 
@@ -47,11 +49,29 @@ Shortcuts: `/` search, `R` roll a random entry, `G` then `O D B S M Q L` to jump
 run.sh              one-command launcher: download the catalogue, build, serve
 serve.py            local server: dataset, per-entry rows, guarded SQL endpoint
 build_dataset.py    romdb.db -> compact columnar dataset (+ schema, profiles, quality checks)
-bundle.py           builds the self-contained hosted version into dist/
+bundle.py           builds the self-contained hosted version into dist/ (or one index.html with --pages)
 compose.py          assembles the page from web/
+refresh_history.py  adds the weekly snapshots published since data/history.json was written
 web/                index.html, css/, js/ (util, data, engine, charts, views)
 data/history.json   weekly snapshot sizes, extracted from the romgi git history
 tests/              dataset-vs-SQL parity and a random-slice property test of the engine
+.github/workflows/  pages.yml: the build that publishes the live site
+```
+
+## The live site
+
+[`pages.yml`](.github/workflows/pages.yml) publishes it to GitHub Pages on every push to `main` and every Monday morning (UTC), shortly
+after romgi's Sunday catalogue. Each run downloads the published catalogue, adds any new snapshots to the history chart, builds the
+dataset, checks it against SQL (`tests/test_dataset.py`), and deploys one `index.html`. A run that fails any step leaves the previous
+site up. The catalogue itself is never committed; it is fetched fresh each time.
+
+The page carries `noindex`, so search engines are asked to skip it, but anyone with the link can open it. GitHub disables scheduled
+workflows in a public repository after 60 days without repository activity; re-enable it from the Actions tab. A run can also be
+started by hand from the Actions tab. To build the same page yourself:
+
+```bash
+python3 build_dataset.py --db data/romdb.db --version-json data/version.json --out dist/dataset.snapshot.json.gz
+python3 bundle.py --dataset dist/dataset.snapshot.json.gz --pages --out-dir site     # then open site/index.html
 ```
 
 ## Tests
@@ -67,5 +87,6 @@ filters and cross-tabs through the browser engine and compares each result with 
 
 ## Notes
 
-The catalogue is distributed by romgi for use in romgi; its README says forks and derivative tools are not supported. This
-explorer reads a copy you download yourself and ships none of the catalogue's links in the hosted file.
+The catalogue is distributed by romgi for use in romgi; its README says forks and derivative tools are not supported. The local
+explorer reads a copy you download yourself. The live site embeds the catalogue's titles, platforms, sizes and source names, and
+leaves out download URLs, file names, per-file torrent paths, magnets, infohashes and box-art URLs; torrent packs appear by name only.

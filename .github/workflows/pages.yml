@@ -1,0 +1,64 @@
+name: Publish the explorer
+
+# Builds the hosted explorer from romgi's published catalogue and deploys it to GitHub Pages.
+# The catalogue is downloaded on every run and never committed.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 5 * * 1"   # Mondays; romgi publishes its weekly catalogue on Sundays
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download the published catalogue
+        run: |
+          RAW=https://raw.githubusercontent.com/caprado/romgi/main/db
+          mkdir -p data dist
+          curl -fsSL --retry 3 -o data/romdb.db.gz "$RAW/romdb.db.gz"
+          curl -fsSL --retry 3 -o data/version.json "$RAW/version.json"
+          gunzip -f data/romdb.db.gz
+          cat data/version.json
+
+      - name: Add the snapshots published since data/history.json was written
+        run: python3 refresh_history.py
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Build the dataset
+        run: python3 build_dataset.py --db data/romdb.db --version-json data/version.json --out dist/dataset.snapshot.json.gz
+
+      - name: Check the dataset against SQL
+        run: python3 tests/test_dataset.py data/romdb.db dist/dataset.snapshot.json.gz
+
+      - name: Build the page
+        run: python3 bundle.py --dataset dist/dataset.snapshot.json.gz --pages --out-dir site
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

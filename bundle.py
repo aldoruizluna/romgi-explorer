@@ -4,6 +4,7 @@ bundle.py - build the self-contained version of the explorer (the dataset is emb
 
   python3 bundle.py --db romdb.db --version-json version.json        # rebuilds the dataset
   python3 bundle.py --dataset dist/dataset.snapshot.json.gz          # reuse a dataset you already built
+  python3 bundle.py --dataset dist/dataset.snapshot.json.gz --pages --out-dir site    # GitHub Pages: site/index.html
 
 Writes, into dist/:
   romgi-explorer.artifact.html     page fragment, the form the Artifact tool publishes
@@ -32,6 +33,7 @@ def main():
     ap.add_argument("--version-json")
     ap.add_argument("--dataset", help="gzip'd dataset JSON built by build_dataset.py (without --local)")
     ap.add_argument("--out-dir", default=str(HERE / "dist"))
+    ap.add_argument("--pages", action="store_true", help="write one index.html (marked noindex) into --out-dir, for GitHub Pages, instead of the two dist files")
     a = ap.parse_args()
     if a.dataset:
         gz = Path(a.dataset).read_bytes()
@@ -42,11 +44,17 @@ def main():
     b64 = base64.b64encode(gz).decode("ascii")
     out = Path(a.out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    mb = lambda n: f"{n / 1e6:.2f} MB"
+    if a.pages:
+        page = compose("snapshot", b64, standalone=True, pages=True)
+        (out / "index.html").write_text(page, encoding="utf-8")
+        print(f"dataset {mb(len(gz))} gzip -> {mb(len(b64))} base64")
+        print(f"pages      {mb(len(page.encode()))}  {out}/index.html   (noindex)")
+        return
     art = compose("snapshot", b64, standalone=False)
     std = compose("snapshot", b64, standalone=True)
     (out / "romgi-explorer.artifact.html").write_text(art, encoding="utf-8")
     (out / "romgi-explorer.standalone.html").write_text(std, encoding="utf-8")
-    mb = lambda n: f"{n / 1e6:.2f} MB"
     print(f"dataset {mb(len(gz))} gzip -> {mb(len(b64))} base64")
     print(f"artifact   {mb(len(art.encode()))}  dist/romgi-explorer.artifact.html   (limit 16 MB)")
     print(f"standalone {mb(len(std.encode()))}  dist/romgi-explorer.standalone.html")

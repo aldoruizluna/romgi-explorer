@@ -124,7 +124,7 @@ App.views.browse = {
       return `<button class="gcard" data-act="open" data-i="${i}"><span class="art">${url ? `<img loading="lazy" decoding="async" referrerpolicy="no-referrer" alt="" src="${esc(url)}">` : ''}<span class="ph">${esc(p.code)}<small>${esc(D.regIds(i).map(r => REG_CODE[r]).join(' '))}</small></span></span>
         <span class="meta"><span class="t">${esc(D.titleShown(i))}</span><span class="row">${D.comboSources(D.E.smask[i]).map(s => `<i class="sd" style="--c:var(--src-${s})"></i>`).join('')}${D.E.ran[i] ? `<span class="ra">${icon('trophy', 12)}${D.E.ran[i]}</span>` : ''}</span></span></button>`;
     }).join('')}</div>${ids.length > n ? `<div style="padding:0 14px 16px"><button class="btn" data-act="galmore">Show ${Math.min(96, ids.length - n)} more of ${fmtN(ids.length)}</button></div>` : ''}`;
-    if (!D.caps.art) box.insertAdjacentHTML('afterbegin', `<div class="notice info" style="margin:14px 14px 0">${icon('info', 16)}<div>Box art is only shown when the explorer runs on your machine. A hosted page cannot load images from other sites.</div></div>`);
+    if (!D.caps.art) box.insertAdjacentHTML('afterbegin', `<div class="notice info" style="margin:14px 14px 0">${icon('info', 16)}<div>Box art is only shown when the explorer runs on your machine; the hosted snapshot carries no image links.</div></div>`);
     box.addEventListener('error', e => { if (e.target.tagName === 'IMG') e.target.remove(); }, true);
   },
 };

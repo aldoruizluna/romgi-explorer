@@ -29,7 +29,7 @@ App.views.sql = {
           <div class="acts">${local ? `<select id="sql-limit" aria-label="Row limit">${[100, 500, 2000, 20000].map(n => `<option value="${n}"${(App.ui.sqlLimit || 500) === n ? ' selected' : ''}>${fmtN(n)} rows</option>`).join('')}</select>
             <button class="btn primary" data-act="sqlrun">${icon('play', 13)}Run <span class="kbd" style="margin-left:4px;color:inherit;border-color:rgba(255,255,255,.35);background:transparent">${/Mac/.test(navigator.platform) ? '⌘' : 'Ctrl'} ↵</span></button>` : ''}</div></div>
           <textarea id="sql-in" class="sql-in" spellcheck="false" aria-label="SQL query" ${local ? '' : 'readonly'}>${esc(text)}</textarea>
-          ${local ? '' : `<div class="notice info" style="margin-top:12px">${icon('info', 16)}<div><b>Run it locally.</b> Start the explorer with <span class="mono">python3 serve.py --db romdb.db</span> and this console runs against the full database, including file names and URLs. The examples on the right work in any SQLite client.</div></div>`}
+          ${local ? '' : `<div class="notice info" style="margin-top:12px">${icon('info', 16)}<div><b>Run it locally.</b> Get the explorer from <a href="https://github.com/aldoruizluna/romgi-explorer" target="_blank" rel="noopener">github.com/aldoruizluna/romgi-explorer</a> and start it with <span class="mono">./run.sh</span>; this console then runs against the full database, including file names and URLs. The examples on the right work in any SQLite client.</div></div>`}
         </div>
         <div class="card flush" id="sql-out" style="margin-top:14px">${sqlResultHTML(App._sql)}</div>
       </div>
