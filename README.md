@@ -64,8 +64,11 @@ hours and costs nothing in between. A rebuild downloads the published catalogue,
 them to `data/history.json`), builds the dataset, checks it against SQL, and deploys:
 
 - a small `index.html` that paints at once with the headline numbers;
-- the catalogue as its own gzip file that streams in with a progress bar and is parsed while it downloads;
-- the box-art paths as a second file, loaded after the page is usable;
+- the catalogue's numbers (2.2 MB gzip) as their own file that streams in with a progress bar and is parsed while it downloads. The
+  counts, charts, filters and pivots all work from this file alone, so on a phone the page is usable after 2.2 MB, not the 4.8 MB it
+  took when titles came along;
+- the titles, serials and slugs (2.7 MB) as a second file that follows at once. Search and the Browse table switch on when it lands;
+- the box-art paths as a third file, loaded once the titles are in, and the covers themselves only as they scroll into view;
 - a link-free copy of the database (`livedb.py`) and [sql.js](https://github.com/sql-js/sql.js) (checked against a pinned hash), which
   the SQL console downloads only when someone runs a query, and then keeps in the browser.
 
@@ -112,16 +115,17 @@ python3 tests/test_dataset.py data/romdb.db dist/dataset.snapshot.json.gz
 node tests/engine.test.js data/romdb.db dist/dataset.snapshot.json.gz 40
 python3 livedb.py data/romdb.db dist/livedb.sqlite.gz --gzip && python3 tests/test_livedb.py data/romdb.db dist/livedb.sqlite.gz
 # after bundle.py --pages --live-db:
-node tests/transport.test.js site/catalogue.*.bin dist/dataset.snapshot.json.gz
+node tests/transport.test.js site/catalogue.*.bin site/text.*.bin dist/dataset.snapshot.json.gz
 node tests/sqlconsole.test.js dist/livedb.sqlite.gz site/vendor/sqljs dist/dataset.snapshot.json.gz
 ```
 
 The first checks every flag, size class, region, source, pack and format count against SQL, and that the table is stored in the order
 the printed SQL sorts by. The second draws random slices, filters and cross-tabs through the browser engine and compares each result with
 the SQL the UI prints, compares the one-dimension fast paths with the general path, then does the same for every hand-picked collection.
-The third checks that the link-free copy is the original minus only the download locators. The fourth unpacks the hosted catalogue file
-the way the page does and checks it equals the dataset it was made from. The fifth runs the browser's SQL engine: what may run, that
-writes fail, CSV quoting, and every example the console offers.
+The third checks that the link-free copy is the original minus only the download locators. The fourth unpacks the two hosted data
+files the way the page does and checks that together they equal the dataset they were made from, that a page started from the first file
+and given the second ends up identical to one built from the whole dataset, and that a missing or mismatched second file is refused
+cleanly. The fifth runs the browser's SQL engine: what may run, that writes fail, CSV quoting, and every example the console offers.
 
 ## License
 

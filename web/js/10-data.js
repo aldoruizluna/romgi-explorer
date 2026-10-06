@@ -21,16 +21,15 @@ async function loadDataset(onPhase) {
   return JSON.parse(text);
 }
 
-/** The hosted site ships the catalogue as its own gzip file: it downloads while the page is already usable, and unpacks as it arrives. */
-async function fetchDataset(url, onPhase) {
+/** The hosted site ships the catalogue as gzip files, one JSON document per line ([section, key|null, value], or
+ *  [section, key, values, offset] for a long column). They unpack as they arrive and are parsed line by line in short tasks. */
+async function readNdjson(url, total, onProgress) {
   const r = await fetch(url);
-  if (!r.ok) throw new Error('The catalogue file answered ' + r.status);
-  const total = window.ROMGI.dataBytes || +r.headers.get('content-length') || 0;   // the file's own size; a CDN may re-compress in transit
+  if (!r.ok) throw new Error(r.status === 404 ? 'That file is gone: the site was probably just updated. Reload the page.' : `${url} answered ${r.status}`);
+  total = total || +r.headers.get('content-length') || 0;     // the file's own size; a CDN may re-compress in transit
   let got = 0;
-  Loader.progress(0, total);
-  const meter = new TransformStream({ transform(chunk, ctl) { got += chunk.length; Loader.progress(got, total); ctl.enqueue(chunk); } });
-  // one JSON document per line ([section, key|null, value] or [section, key, values, offset] for a long column),
-  // parsed as each line completes, in short tasks
+  onProgress(0, total);
+  const meter = new TransformStream({ transform(chunk, ctl) { got += chunk.length; onProgress(got, total); ctl.enqueue(chunk); } });
   const raw = {}, put = ([k, kk, v, off]) => {
     if (kk === null) { raw[k] = v; return; }
     const sec = raw[k] || (raw[k] = {});
@@ -57,6 +56,22 @@ async function fetchDataset(url, onPhase) {
   }
   if (parts.length) await take(parts.join(''));
   return raw;
+}
+
+/** The numbers every view needs: the page starts as soon as this has arrived. */
+const fetchDataset = (url, onPhase) => readNdjson(url, window.ROMGI.dataBytes, (got, total) => Loader.progress(got, total));
+
+/** Titles, serials, slugs and torrent file numbers arrive as a second file while the page is already usable. The views
+ *  that need them wait; the search box says so. */
+async function loadText() {
+  const D = App.D, url = window.ROMGI.text;
+  if (!D || D.textReady || !url) return;
+  App.textState = { got: 0, total: window.ROMGI.textBytes || 0, error: '' };
+  try {
+    const part = await readNdjson(url, window.ROMGI.textBytes, (got, total) => { App.textState.got = got; App.textState.total = total || App.textState.total; App.textProgress(); });
+    await runSliced(attachTextSteps(D, part));
+    App.textReady();
+  } catch (e) { App.textState.error = e.message; console.warn('Titles unavailable:', e.message); App.textProgress(); }
 }
 
 /** The hosted site ships box-art paths as their own file, fetched once the page is usable; local mode already has them. */
@@ -99,16 +114,14 @@ const ASCII_ONLY = /^[\x00-\x7f]*$/;
 function* prepareSteps(raw) {
   const dims = raw.dims, re = raw.entries, rl = raw.links, nE = re.n, nL = rl.n;
   // new TypedArray(array) is several times faster than TypedArray.from(array); the columns are copied a few at a time
-  const E = { n: nE, title: re.title, rom: re.rom, art: re.art || null };
+  const E = { n: nE, title: null, rom: null, tl: null, art: re.art || null };       // the text is attached by attachTextSteps
   E.platform = new Uint8Array(re.platform); E.reg = new Uint8Array(re.reg); E.ra = new Uint32Array(re.ra); yield;
   E.ran = new Uint16Array(re.ran); E.flags = new Uint32Array(re.flags); E.nl = new Uint16Array(re.nl); yield;
   E.artk = new Uint8Array(re.artk); E.group = new Int16Array(re.group); yield;
   const L = { n: nL };
   L.src = new Uint8Array(rl.src); L.type = new Uint8Array(rl.type); L.fmt = new Uint8Array(rl.fmt); yield;
   L.size = new Float64Array(rl.size); yield;
-  L.pack = new Int16Array(rl.pack); L.tidx = new Int32Array(rl.tidx); yield;
-  const slugX = new Map(Object.entries(re.slug_x).map(([k, v]) => [+k, v]));
-  const fixes = new Map(Object.entries(re.fix).map(([k, v]) => [+k, v]));
+  L.pack = new Int16Array(rl.pack); L.tidx = null; yield;
 
   // entry -> link offsets, link -> entry
   E.start = new Uint32Array(nE + 1);
@@ -149,15 +162,15 @@ function* prepareSteps(raw) {
   E.nsrc = new Uint8Array(nE);
   E.rab = new Uint8Array(nE);
   E.nlb = new Uint8Array(nE);
-  E.hasSer = new Uint8Array(nE);
+  E.hasSer = new Uint8Array(re.hasser);         // these three come from the builder, so they need no text
+  E.initial = new Uint8Array(re.initial);
+  E.tkey = new Uint32Array(nE);                  // title group ids, counted up as titles first appear; tback is the way back (0 = new)
   E.inGrp = new Uint8Array(nE);
-  E.initial = new Uint8Array(nE);
-  E.tkey = new Uint32Array(nE);
   E.sumSize = new Float64Array(nE);
-  E.tl = new Array(nE);
-  const tmap = new Map();
+  let nextTitle = 0;
   for (let i = 0; i < nE; i++) {
-    const t = E.title[i];
+    const back = re.tback[i];
+    E.tkey[i] = back === 0 ? nextTitle++ : nextTitle - back;
     E.brand[i] = platBrand[E.platform[i]];
     E.regBits[i] = REGLUT[E.reg[i]];
     let m = 0, sum = 0;
@@ -169,36 +182,47 @@ function* prepareSteps(raw) {
     E.rab[i] = n === 0 ? 0 : n < 10 ? 1 : n < 25 ? 2 : n < 50 ? 3 : n < 100 ? 4 : n < 250 ? 5 : 6;
     const nl = E.nl[i];
     E.nlb[i] = nl <= 1 ? 0 : nl >= 5 ? 4 : nl - 1;
-    E.hasSer[i] = E.rom[i] !== '' ? 1 : 0;
     E.inGrp[i] = E.group[i] >= 0 ? 1 : 0;
-    let k0 = 0; while (t.charCodeAt(k0) === 32) k0++;      // SQL trim() removes spaces only
-    const c = t.charCodeAt(k0);
-    E.initial[i] = c >= 65 && c <= 90 ? c - 63 : c >= 97 && c <= 122 ? c - 95 : c >= 48 && c <= 57 ? 1 : 0;
-    const key = E.platform[i] + '|' + t;
-    let v = tmap.get(key);
-    if (v === undefined) { v = tmap.size; tmap.set(key, v); }
-    E.tkey[i] = v;
-    E.tl[i] = ASCII_ONLY.test(t) ? t.toLowerCase() : asciiLower(t);
     if ((i & 0x3FFF) === 0x3FFF) yield;
   }
 
-  const D = { raw, dims, E, L, nTitles: tmap.size, meta: raw.meta, caps: raw.meta.caps, slugX, fixes };
+  if (nextTitle !== re.ntitles) throw new Error('The title groups do not add up: the dataset is damaged.');
+  const D = { raw, dims, E, L, nTitles: re.ntitles, meta: raw.meta, caps: raw.meta.caps, slugX: new Map(), fixes: new Map(), textReady: false };
   D.platformOf = i => dims.platforms[E.platform[i]];
-  D.slugOf = i => slugX.get(i) ?? (slugifyAscii(E.title[i]) + '-' + dims.platforms[E.platform[i]].id + D.regIds(i).map(r => '-' + r).join(''));
+  D.slugOf = i => D.slugX.get(i) ?? (slugifyAscii(E.title[i]) + '-' + dims.platforms[E.platform[i]].id + D.regIds(i).map(r => '-' + r).join(''));
   D.regIds = i => { const out = []; let c = E.reg[i]; while (c) { out.push(dims.regions[c % 5 - 1].id); c = Math.floor(c / 5); } return out; };
   D.flagLabels = i => { const out = []; const m = E.flags[i]; for (let b = 0; b < dims.flags.length; b++) if (m >> b & 1) out.push(dims.flags[b]); return out; };
   D.artUrl = i => {
     if (!E.art || !E.artk[i]) return null;
     return (E.artk[i] === 1 ? 'https://art.gametdb.com/' : 'https://thumbnails.libretro.com/') + E.art[i];
   };
-  D.fixTitle = i => fixes.get(i) || null;
-  D.titleShown = i => { const t = (fixes.get(i) || E.title[i]).replace(/^ +| +$/g, ''); return t || '(empty title)'; };
+  D.fixTitle = i => D.fixes.get(i) || null;
+  D.titleShown = i => { if (!E.title) return ''; const t = (D.fixes.get(i) || E.title[i]).replace(/^ +| +$/g, ''); return t || '(empty title)'; };
   D.srcDot = s => `<i class="sd" style="--c:var(--src-${s})"></i>`;
   D.comboSources = mask => dims.sources.map((_, s) => s).filter(s => mask >> s & 1);
   D.entryLinks = i => [E.start[i], E.start[i + 1]];
   D.groupOf = i => (E.group[i] >= 0 ? dims.groups[E.group[i]] : null);
   D.sameTitle = i => { const out = []; const k = E.tkey[i]; for (let j = Math.max(0, i - 40); j < Math.min(nE, i + 41); j++) if (E.tkey[j] === k) out.push(j); return out; };
+  if (re.title) yield* attachTextSteps(D, raw);        // a whole dataset (local server, single file, tests) carries its text
   return D;
+}
+
+/** Titles, serials, slugs and torrent file numbers; then the lower-cased titles the search scans. */
+function* attachTextSteps(D, part) {
+  const E = D.E, L = D.L, pe = part.entries, pl = part.links;
+  if (pe.title.length !== E.n) throw new Error('The titles do not belong to this catalogue. Reload the page.');
+  E.title = pe.title; E.rom = pe.rom; yield;
+  L.tidx = new Int32Array(pl.tidx); yield;
+  D.slugX = new Map(Object.entries(pe.slug_x).map(([k, v]) => [+k, v]));
+  D.fixes = new Map(Object.entries(pe.fix).map(([k, v]) => [+k, v]));
+  const tl = new Array(E.n);
+  for (let i = 0; i < E.n; i++) {
+    const t = E.title[i];
+    tl[i] = ASCII_ONLY.test(t) ? t.toLowerCase() : asciiLower(t);
+    if ((i & 0x3FFF) === 0x3FFF) yield;
+  }
+  E.tl = tl;
+  D.textReady = true;
 }
 
 function prepare(raw) {

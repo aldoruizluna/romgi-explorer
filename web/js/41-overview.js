@@ -97,6 +97,7 @@ App.views.overview = {
     this._tm = { tmRows, fmtTm, tm };
   },
   after(root) {
+    Covers.watch(root);
     const el = $('#tm', root);
     if (!el || !el.offsetParent) return;
     const { S, D } = App, tm = App.ui.treemap, vals = S.groupBy('plat', tm), total = vals.reduce((a, c) => a + c, 0) || 1;

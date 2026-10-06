@@ -35,12 +35,30 @@ const App = {
     $('#roll-ic').innerHTML = icon('dice', 16);
     $('#help-ic').innerHTML = icon('help', 16);
     this.paintTheme();
+    const q = $('#q');
+    q.dataset.ph = q.placeholder;
+    if (!D.textReady) { q.disabled = true; q.placeholder = 'Loading titles…'; }
     $('#ver').innerHTML = `<i class="fd" id="fd" aria-hidden="true"></i>${esc(`${D.meta.version} · schema v${D.meta.schema_version ?? '?'}`)}`;
     S.onChange = () => this.schedule();
     S.state.grain = store.get('grain', 'entries') === 'links' ? 'links' : 'entries';
     S.changed();
     this.buildRail(); this.renderTabs(); this.bind();
     this.refresh();
+  },
+  /** The titles have arrived: wake the search box, redraw what needs them, and only now fetch the covers. */
+  textReady() {
+    const q = $('#q');
+    q.disabled = false; q.placeholder = q.dataset.ph || q.placeholder;
+    if (this.ui.view === 'overview' || this.ui.view === 'browse') this.renderView();
+    loadArt();
+  },
+  /** Progress of the title download: the search placeholder and, in Browse, the bar. */
+  textProgress() {
+    const s = this.textState || {}, p = s.total ? Math.min(1, s.got / s.total) : 0, q = $('#q');
+    if (q && q.disabled) q.placeholder = s.error ? 'Titles could not be loaded' : `Loading titles… ${Math.round(p * 100)}%`;
+    const box = $('#text-load');
+    if (box) { $('.num', box).textContent = s.total ? `${(s.got / 1e6).toFixed(1)} of ${(s.total / 1e6).toFixed(1)} MB` : ''; $('.mt i', box).style.width = (p * 100).toFixed(1) + '%'; }
+    if (s.error && !box && this.ui.view === 'browse') this.renderView();
   },
   /** The cover paths have arrived (or failed): redraw what shows covers. */
   artReady() {
@@ -49,9 +67,9 @@ const App = {
     if (this.sel != null) Drawer.render();
   },
   aboutText() {
-    const m = this.D.meta, day = s => (s || '').slice(0, 10), f = this.fresh, hosted = !!window.ROMGI.data;
+    const m = this.D.meta, day = s => (s || '').slice(0, 10), f = this.fresh, hosted = !!window.ROMGI.data, built = window.ROMGI.builtAt || m.built_at;
     const status = !f ? '' : f.state === 'current' ? ' It matches the latest catalogue romgi has published.' : ` romgi has since published the catalogue of ${esc(day(f.latest.generated_at))}.`;
-    return `Catalogue of ${esc(day(m.generated_at))} (version ${esc(m.version)}) from <a href="${esc(m.source_repo)}" target="_blank" rel="noopener">romgi</a>, built ${esc(day(m.built_at))}.${status}${hosted ? ' This site checks romgi every three hours and rebuilds when there is something new.' : ''} <a href="https://github.com/aldoruizluna/romgi-explorer" target="_blank" rel="noopener">Source code</a> (MIT).`;
+    return `Catalogue of ${esc(day(m.generated_at))} (version ${esc(m.version)}) from <a href="${esc(m.source_repo)}" target="_blank" rel="noopener">romgi</a>, built ${esc(day(built))}.${status}${hosted ? ' This site checks romgi every three hours and rebuilds when there is something new.' : ''} <a href="https://github.com/aldoruizluna/romgi-explorer" target="_blank" rel="noopener">Source code</a> (MIT).`;
   },
   /** The dot beside the version: green when romgi has nothing newer, amber when it has. */
   paintFresh() {
@@ -231,6 +249,7 @@ const App = {
   },
   handlers: {},
   roll() {
+    if (!this.D.textReady) return toast('The titles are still loading.');
     const ids = this.S.visIdx('entries');
     if (!ids.length) return toast('Nothing in this slice to roll.');
     const el = $('#roll-ic'); el.firstElementChild.style.transition = 'rotate .5s cubic-bezier(.3,1.5,.5,1)'; el.firstElementChild.style.rotate = (Math.floor(Math.random() * 3) + 1) * 90 + 'deg';
@@ -265,7 +284,7 @@ const App = {
       if (el.dataset.act === 'close-modal') return $('#modal').classList.remove('on');
       this.act(el, e);
     });
-    $('#q').addEventListener('input', debounce(e => S.setQuery(e.target.value), 140));
+    $('#q').addEventListener('input', debounce(e => { if (this.D.textReady) S.setQuery(e.target.value); }, 140));
     $('#rail').addEventListener('input', e => {
       const id = e.target.dataset.find; if (!id) return;
       this.ui.find[id] = e.target.value;
@@ -307,8 +326,15 @@ const Loader = {
   done() { const l = $('#loader'); if (!l) return; $$('.px i', l).forEach(i => i.classList.add('on')); l.classList.add('done'); setTimeout(() => l.remove(), 450); },
   fail(e) { const l = $('#loader'); $('.inner', l).innerHTML = `<div class="word">romgi</div><div class="err"><b>The catalogue could not be loaded.</b><br>${esc(e.message || e)}</div>`; },
 };
-/** Resolves after the first frame has been painted; a background tab, where frames are paused, falls back to a timer. */
-const afterFirstPaint = () => new Promise(done => { requestAnimationFrame(() => setTimeout(done, 0)); setTimeout(done, 400); });
+/** Resolves once the first frame has been presented (the paint entry exists), so nothing is requested before the loader's headline is on
+ *  screen. Lighthouse counts a request that finishes before the largest paint as part of it, and a small file on a fast link can finish in
+ *  the few milliseconds between its start and the paint. A background tab, where frames are paused, falls back to a timer. */
+const afterFirstPaint = () => new Promise(done => {
+  try {
+    new PerformanceObserver((list, obs) => { if (list.getEntries().some(e => e.name === 'first-contentful-paint')) { obs.disconnect(); setTimeout(done, 0); } }).observe({ type: 'paint', buffered: true });
+  } catch { requestAnimationFrame(() => setTimeout(done, 0)); }
+  setTimeout(done, 600);
+});
 async function boot() {
   Theme.apply(); Tip.init(); App.loadUI();
   try {
@@ -322,7 +348,7 @@ async function boot() {
     await runSliced(collectionSteps());
     App.mount();
     Loader.done();
-    loadArt();                       // not awaited: covers are an extra on top of a page that already works
+    if (App.D.textReady) loadArt(); else loadText();      // not awaited: the page already works; titles, then covers, follow
     checkFreshness();                // likewise: a dot beside the version
   } catch (e) { console.error(e); Loader.fail(e); }
 }

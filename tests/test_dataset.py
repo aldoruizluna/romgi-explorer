@@ -29,6 +29,31 @@ def check(name, got, want):
 
 sc = lambda sql: con.execute(sql).fetchone()[0]
 
+# columns derived from the text so the page can start without it must say what SQL says
+ini_sql = "upper(substr(trim(title), 1, 1))"
+by_initial = collections.Counter(E["initial"])
+want0 = sc(f"SELECT COUNT(*) FROM entries WHERE NOT ({ini_sql} BETWEEN 'A' AND 'Z' OR substr(trim(title), 1, 1) BETWEEN '0' AND '9')")
+check("starts with: other", by_initial[0], want0)
+check("starts with: digit", by_initial[1], sc("SELECT COUNT(*) FROM entries WHERE substr(trim(title), 1, 1) BETWEEN '0' AND '9'"))
+for v in range(2, 28):
+    check(f"starts with: {chr(63 + v)}", by_initial[v], sc(f"SELECT COUNT(*) FROM entries WHERE {ini_sql} = '{chr(63 + v)}'"))
+check("entries with a serial", sum(E["hasser"]), sc("SELECT COUNT(*) FROM entries WHERE COALESCE(rom_id, '') <> ''"))
+check("hasser follows the serial list", sum(1 for r, h in zip(E["rom"], E["hasser"]) if (r != "") != bool(h)), 0)
+check("distinct titles by platform", E["ntitles"], sc("SELECT COUNT(*) FROM (SELECT DISTINCT platform, title FROM entries)"))
+tkey, nxt = [], 0                      # decoded the way the page does: 0 = a new title, else how many ids ago it was first seen
+for back in E["tback"]:
+    if back == 0:
+        tkey.append(nxt); nxt += 1
+    else:
+        tkey.append(nxt - back)
+check("title groups decode to ntitles ids", nxt, E["ntitles"])
+check("tback values that point past the first id", sum(1 for b in E["tback"] if b > nxt), 0)
+groups = {}
+for plat, title, k in zip(E["platform"], E["title"], tkey):
+    groups.setdefault((plat, title), set()).add(k)
+check("one title group per platform and title", sum(1 for s in groups.values() if len(s) != 1), 0)
+check("title groups are numbered 0..n-1 without gaps", sorted({next(iter(s)) for s in groups.values()}) == list(range(E["ntitles"])), True)
+
 # the table is stored in the order the SQL printed under "SQL behind this view" sorts by (SQLite's own comparator ranks the keys)
 rank = dict(con.execute(f"SELECT e.title, DENSE_RANK() OVER (ORDER BY {ds['meta']['sql_title_order']}) FROM entries e"))
 seq = [rank[t] for t in E["title"]]

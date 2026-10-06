@@ -63,9 +63,22 @@ function linkCells(l) {
 /** One cover card, used by the gallery and the daily shelf. The placeholder stays underneath until the image has loaded. */
 function galCardHTML(i) {
   const D = App.D, p = D.platformOf(i), url = D.caps.art ? D.artUrl(i) : null;
-  return `<button class="gcard" data-act="open" data-i="${i}"><span class="art">${url ? `<img loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" alt="" src="${esc(url)}">` : ''}<span class="ph">${esc(p.code)}<small>${esc(D.regIds(i).map(r => REG_CODE[r]).join(' '))}</small></span></span>
+  return `<button class="gcard" data-act="open" data-i="${i}"><span class="art">${url ? `<img data-src="${esc(url)}" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" alt="">` : ''}<span class="ph">${esc(p.code)}<small>${esc(D.regIds(i).map(r => REG_CODE[r]).join(' '))}</small></span></span>
     <span class="meta"><span class="t">${esc(D.titleShown(i))}</span><span class="s">${esc(p.code)} · ${esc(D.regIds(i).map(r => REG_CODE[r]).join(' ') || 'no region')}</span><span class="row">${D.comboSources(D.E.smask[i]).map(s => `<i class="sd" style="--c:var(--src-${s})"></i>`).join('')}${D.E.ran[i] ? `<span class="ra">${icon('trophy', 12)}${D.E.ran[i]}</span>` : ''}</span></span></button>`;
 }
+/** A cover starts downloading only when its card is within reach of the screen, a little sooner than the browser's own lazy loading,
+ *  so a phone does not fetch a shelf it has not scrolled to. */
+const Covers = {
+  io: null,
+  watch(root) {
+    const imgs = $$('img[data-src]', root);
+    if (!imgs.length) return;
+    const start = img => { img.src = img.dataset.src; img.removeAttribute('data-src'); };
+    if (!('IntersectionObserver' in window)) return imgs.forEach(start);
+    this.io = this.io || new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { this.io.unobserve(e.target); start(e.target); } }, { rootMargin: '200px 0px' });
+    imgs.forEach(img => this.io.observe(img));
+  },
+};
 // covers fade in when they have loaded; one that fails leaves the placeholder showing (load and error do not bubble, so listen while capturing)
 document.addEventListener('load', e => { if (e.target.tagName === 'IMG' && e.target.closest('.gcard .art')) e.target.classList.add('in'); }, true);
 document.addEventListener('error', e => { if (e.target.tagName === 'IMG' && e.target.closest('.gcard .art')) e.target.remove(); }, true);
@@ -91,8 +104,18 @@ function vtPaint() {
   body.innerHTML = out;
 }
 
+/** What Browse shows while the titles are still on their way (or could not be fetched). */
+const textLoadingHTML = () => {
+  const s = App.textState || {}, p = s.total ? Math.min(1, s.got / s.total) : 0;
+  if (s.error) return `<div class="vt-wrap"><div class="notice" style="margin:18px">${icon('alert', 16)}<div><b>The titles could not be loaded.</b> ${esc(s.error)} <button class="btn sm" data-act="textretry" style="margin-left:6px">Try again</button></div></div></div>`;
+  return `<div class="vt-wrap"><div class="meter" id="text-load" style="margin:22px" role="status"><div class="mh"><span>Loading the titles</span><span class="num">${s.total ? `${(s.got / 1e6).toFixed(1)} of ${(s.total / 1e6).toFixed(1)} MB` : ''}</span></div>
+    <div class="mt" role="progressbar" aria-label="Title download" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(p * 100)}"><i style="width:${(p * 100).toFixed(1)}%"></i></div></div>
+    <p class="muted" style="margin:0 22px 22px">The counts, charts and filters are ready; the titles follow in a moment.</p></div>`;
+};
+
 App.views.browse = {
   render(root) {
+    if (!App.D.textReady) { root.innerHTML = textLoadingHTML(); return; }
     const { S, D } = App, g = S.state.grain, b = App.ui.browse;
     const minOf = c => parseInt((c.w.match(/\d+/) || [100])[0], 10) || 100;
     let cols = [...(g === 'entries' ? ENTRY_COLS : LINK_COLS)];
@@ -125,6 +148,7 @@ App.views.browse = {
     </div>`;
   },
   after(root) {
+    if (!App.D.textReady) return;
     const b = App.ui.browse;
     if (b.mode === 'gallery') {
       $('#gal-art', root)?.addEventListener('change', e => { b.artOnly = e.target.checked; App._galN = 0; App.saveUI(); App.renderView(); });
@@ -147,6 +171,7 @@ App.views.browse = {
         : 'Box art is only shown when the explorer runs on your machine; this copy carries no image links.';
     box.innerHTML = `${note ? `<div class="notice info" style="margin:14px 14px 0">${icon('info', 16)}<div>${esc(note)}</div></div>` : ''}
       <div class="gal">${show.map(galCardHTML).join('') || '<div class="vt-empty" style="grid-column:1/-1">Nothing in this slice has box art.</div>'}</div>${ids.length > n ? `<div style="padding:0 14px 16px"><button class="btn" data-act="galmore">Show ${Math.min(48, ids.length - n)} more of ${fmtN(ids.length)}</button></div>` : ''}`;
+    Covers.watch(box);
   },
 };
 Object.assign(App.handlers, {
@@ -155,6 +180,7 @@ Object.assign(App.handlers, {
   bdens(el) { App.ui.browse.density = el.dataset.m; App.saveUI(); App.renderView(); },
   galmore() { App.views.browse.gallery($('#view'), (App._galN || 48) + 48); },
   dstep(el) { Drawer.step(+el.dataset.d); },
+  textretry() { loadText(); App.renderView(); },
   export(el) {
     const { S } = App, b = App.ui.browse, g = S.state.grain, key = (g === 'entries' ? ENTRY_COLS : LINK_COLS).some(c => c.sort === b.sortKey) ? b.sortKey : 'title';
     if (el.dataset.m === 'csv') { downloadText(`romgi-${g}-${App.D.meta.version}.csv`, S.exportRows(g, key, b.dir, 1e6, ',')); toast('CSV saved'); }
@@ -166,6 +192,7 @@ Object.assign(App.handlers, {
 const Drawer = {
   cache: new Map(),
   open(i) {
+    if (!App.D.textReady) return toast('The titles are still loading.');
     App.sel = i;
     const el = $('#drawer'); el.classList.add('open'); el.setAttribute('aria-hidden', 'false');
     if (innerWidth <= 1000) $('#scrim').classList.add('on');

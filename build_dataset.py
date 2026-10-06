@@ -28,7 +28,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 HERE = Path(__file__).resolve().parent
-BUILD_VERSION = 6   # bump when the dataset format changes; serve.py keys its cache on it
+BUILD_VERSION = 8   # bump when the dataset format changes; serve.py keys its cache on it
 
 # Fixed entity order. Colour slots are assigned by this order and never by rank, so a source keeps its colour.
 SOURCE_ORDER = ["minerva", "internet_archive", "nopaystation", "mariocube"]
@@ -129,6 +129,16 @@ def title_order_sql(col: str) -> str:
     """The ORDER BY the explorer's default title order is equal to: empty titles last, leading punctuation ignored."""
     lit = TITLE_PUNCT.replace("'", "''")
     return f"(trim({col}) = ''), ltrim(trim({col}), '{lit}') COLLATE NOCASE"
+
+
+def initial_class(title: str) -> int:
+    """What the "Starts with" facet files a title under: 0 other, 1 digit, 2..27 A..Z. The first non-space character decides
+    (SQL's trim() removes spaces only), and only ASCII letters and digits count, exactly as the browser used to work it out."""
+    s = title.lstrip(" ")
+    if not s:
+        return 0
+    c = ord(s[0])
+    return c - 63 if 65 <= c <= 90 else c - 95 if 97 <= c <= 122 else 1 if 48 <= c <= 57 else 0
 
 
 def ascii_lower(s: str) -> str:
@@ -254,6 +264,7 @@ def build(db_path, *, local=False, version_json=None, history_json=None, profile
         regs[entry].append(region)
 
     e_title, e_plat, e_reg, e_rom, e_ra, e_ran, e_flags, e_artk = [], [], [], [], [], [], [], []
+    e_initial, e_tback, e_hasser = [], [], []    # derived from the text here, so the page can start without the text
     e_art = []
     slug_x = {}
     fixes = {}
@@ -261,6 +272,16 @@ def build(db_path, *, local=False, version_json=None, history_json=None, profile
     tkey_seen = {}
     for i, (slug, rom, title, plat, art, ra, ran) in enumerate(erows):
         e_title.append(title)
+        e_initial.append(initial_class(title))
+        # One id per platform and title, counted up as titles first appear. Only the way back is written: 0 for a new title,
+        # else how many ids ago it was first seen. Those are almost all 0 (68 are not), so the column compresses to 22 KB, not 455.
+        tk = tkey_seen.get((plat_idx[plat], title))
+        if tk is None:
+            tkey_seen[(plat_idx[plat], title)] = len(tkey_seen)
+            e_tback.append(0)
+        else:
+            e_tback.append(len(tkey_seen) - tk)
+        e_hasser.append(1 if rom else 0)
         e_plat.append(plat_idx[plat])
         rs = regs.get(slug, [])
         assert len(rs) <= 3
@@ -388,6 +409,7 @@ def build(db_path, *, local=False, version_json=None, history_json=None, profile
         "entries": {
             "n": nE, "title": e_title, "platform": e_plat, "reg": e_reg, "rom": e_rom, "ra": e_ra, "ran": e_ran,
             "flags": e_flags, "nl": e_nl, "artk": e_artk, "group": e_group, "slug_x": slug_x, "fix": fixes,
+            "initial": e_initial, "tback": e_tback, "hasser": e_hasser, "ntitles": len(tkey_seen),
             **({"art": e_art} if local else {}),
         },
         "links": {"n": nL, "src": l_src, "type": l_type, "fmt": l_fmt, "size": l_size, "pack": l_pack,

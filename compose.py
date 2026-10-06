@@ -62,14 +62,16 @@ def hero_html(h: dict) -> str:
 
 
 def compose(mode: str, data_b64: str = "", standalone: bool = False, pages: bool = False,
-            data_url: str = "", hero: dict | None = None, art_url: str = "", site_url: str = "", sql: dict | None = None, data_bytes: int = 0) -> str:
+            data_url: str = "", hero: dict | None = None, art_url: str = "", site_url: str = "", sql: dict | None = None, data_bytes: int = 0,
+            text_url: str = "", text_bytes: int = 0, built_at: str = "") -> str:
     """mode: 'local' (talks to serve.py) or 'snapshot' (dataset embedded, or fetched from data_url).
     Fragment form is what the Artifact tool wants; pages=True adds noindex and serves the fonts from the site."""
     tpl, css, js = read_parts()
     js = js.replace("</script", "<\\/script")
     out = (tpl.replace("<!--@FONTS@-->", self_hosted_fonts() if pages else GOOGLE_FONTS)
            .replace("/*@CSS@*/", css).replace("/*@MODE@*/", mode).replace("/*@DATAURL@*/", html.escape(data_url, quote=True)).replace("/*@ARTURL@*/", html.escape(art_url, quote=True))
-           .replace("/*@DATABYTES@*/0", str(int(data_bytes)))
+           .replace("/*@DATABYTES@*/0", str(int(data_bytes))).replace("/*@TEXTURL@*/", html.escape(text_url, quote=True))
+           .replace("/*@TEXTBYTES@*/0", str(int(text_bytes))).replace("/*@BUILTAT@*/", html.escape(built_at or "", quote=True))
            .replace("/*@SQL@*/null", json.dumps(sql).replace("</", "<\\/") if sql else "null")
            .replace("<!--@HERO@-->", hero_html(hero) if hero else "")
            .replace("/*@DATA@*/", data_b64).replace("/*@JS@*/", js + "\nboot();"))
