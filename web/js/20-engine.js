@@ -366,7 +366,7 @@ class Slicer {
     const { E, L, res } = this;
     const R = this.dimOf(rowId), C = this.dimOf(colId);
     const nr = this.dimSize(R), nc = this.dimSize(C);
-    if (colId == null && rowId && rowId !== 'all' && (measure === 'entries' || measure === 'links') && this.base[measure]?.[rowId] && !this.anyActive()) {
+    if (!this._noFast && colId == null && rowId && rowId !== 'all' && (measure === 'entries' || measure === 'links') && this.base[measure]?.[rowId] && !this.anyActive()) {
       // unfiltered: the facet's base count in this grain is the same tally, already computed
       return (this.cache[ck] = { R, C, nr, nc, cells: Float64Array.from(this.base[measure][rowId].slice(0, nr)), measure });
     }
@@ -392,6 +392,34 @@ class Slicer {
         const k = a * nc + b; cells[k] += w; if (cnt) cnt[k]++;
       }
       if (cnt) for (let k = 0; k < cells.length; k++) cells[k] = cnt[k] ? cells[k] / cnt[k] : NaN;
+    } else if (!this._noFast && entryMeasure && C.id === 'all' && (R.level === 'l' || R.kind === 'mask')) {
+      // fast path: one dimension, each entry counted once per value it has (link-level values come from its links that pass)
+      const n = R.n, none = R.noneExtra ? 1 : 0, col = R.col;
+      const last = R.level === 'l' ? new Int32Array(nr).fill(-1) : null;
+      for (let i = 0; i < E.n; i++) {
+        if (res.failE[i] || (res.linkActive && !res.anyPass[i])) continue;
+        const w = measure === 'ra' ? E.ran[i] : 1;
+        if (last) {
+          for (let l = E.start[i], end = E.start[i + 1]; l < end; l++) {
+            if (res.failL[l]) continue;
+            let v = col[l]; if (v >= n) { if (!none) continue; v = n; }
+            if (last[v] !== i) { last[v] = i; cells[v] += w; }
+          }
+        } else {
+          const m = R.mask[i];
+          if (m === 0 && none) cells[n] += w; else for (let b = 0; b < n; b++) if (m >> b & 1) cells[b] += w;
+        }
+      }
+    } else if (!this._noFast && !entryMeasure && measure !== 'avg' && C.id === 'all' && R.level === 'e' && R.kind === 'mask') {
+      // fast path: links of entries that carry each bit of a multi-valued entry dimension
+      const n = R.n, none = R.noneExtra ? 1 : 0, mask = R.mask, eo = L.eo, bytes = measure === 'bytes';
+      for (let l = 0; l < L.n; l++) {
+        if (res.failL[l] || res.failE[eo[l]]) continue;
+        let w = 1;
+        if (bytes) { const sb = L.sb[l]; w = sb >= 1 && sb <= 5 ? L.size[l] : 0; }
+        const m = mask[eo[l]];
+        if (m === 0 && none) cells[n] += w; else for (let b = 0; b < n; b++) if (m >> b & 1) cells[b] += w;
+      }
     } else if (entryMeasure) {
       // Two link-level dimensions must pair values from the same link, then count each entry once per cell.
       const perLink = R.level === 'l' && C.level === 'l' && R.id !== 'all' && C.id !== 'all';

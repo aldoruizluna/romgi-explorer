@@ -76,6 +76,22 @@ async function loadArt() {
   } catch (e) { App.artState = 'failed'; console.warn('Box art unavailable:', e.message); App.artReady(); }
 }
 
+/** Say whether this build matches romgi's published catalogue. The hosted site rebuilds itself when romgi publishes. */
+async function checkFreshness() {
+  const D = App.D;
+  if (!D || window.ROMGI.mode === 'local' || !window.ROMGI.data) return;
+  const repo = (D.meta.source_repo || '').replace('https://github.com/', '');
+  if (!repo) return;
+  try {
+    const r = await fetch(`https://raw.githubusercontent.com/${repo}/main/db/version.json`);
+    if (!r.ok) return;
+    const j = await r.json(), m = D.meta;
+    const same = j.version === m.version && j.generated_at === m.generated_at && j.entries === D.E.n && j.links === D.L.n;
+    App.fresh = { state: !same && Date.parse(j.generated_at) > Date.parse(m.generated_at) ? 'behind' : 'current', latest: j };
+  } catch { return; }          // offline, or a host that blocks the request: say nothing
+  App.paintFresh();
+}
+
 const slugifyAscii = t => t.toLowerCase().replace(/&/g, ' and ').replace(/\+/g, ' plus ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 const ASCII_ONLY = /^[\x00-\x7f]*$/;
 

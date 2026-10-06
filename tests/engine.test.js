@@ -120,6 +120,14 @@ for (let round = 0; round < rounds; round++) {
         expect(`round ${round} cell ${rf.id}[${a}] x ${cf.id}[${b}] ${measure}`, x.cells[a * x.nc + b], expectedCell(rf, a, cf, b, measure));
       }
     }
+    // the one-dimension fast paths must give exactly what the general path gives
+    for (const f of shuffle(S.facets).slice(0, 5)) {
+      for (const m of ['entries', 'links', 'bytes']) {
+        S.cache = {}; const quick = Array.from(S.groupBy(f.id, m));
+        S.cache = {}; S._noFast = true; const slow = Array.from(S.groupBy(f.id, m)); S._noFast = false;
+        expect(`round ${round} groupBy ${f.id} ${m}: fast path vs general path`, JSON.stringify(quick), JSON.stringify(slow));
+      }
+    }
     console.log(`round ${String(round).padStart(2)}: ${checks - before} checks in ${((Date.now() - t1) / 1000).toFixed(1)}s, fails so far ${fails}  [${S.state.grain}] ${S.chips().map(c => c.label + (c.neg ? '!' : '')).join(' | ') || 'no filters'}`);
   } else skipped++;
 }

@@ -55,7 +55,7 @@ function* collectionSteps() {
 function collectionsHTML() {
   const cs = App._colls || [];
   if (!cs.length) return '';
-  return `<section class="s12 shelf" aria-labelledby="start-h"><div class="shelf-h"><div><h3 id="start-h">Start here</h3><p>Hand-picked slices of the catalogue. Each one sets the filters for you; change them whenever you like.</p></div></div>
+  return `<section class="s12 shelf" aria-labelledby="start-h"><div class="shelf-h"><div><h3 id="start-h">Start here</h3><p>Hand-picked slices. Each one sets the filters for you.</p></div></div>
     <div class="colls">${cs.map(c => {
     const links = c.preset.grain === 'links';
     return `<button class="coll" data-act="collection" data-id="${esc(c.id)}"><span class="ic-wrap">${icon(c.icon, 18)}</span>
@@ -101,7 +101,7 @@ function picksHTML() {
   if (!(D.caps.art || window.ROMGI.art)) return '';
   const ids = dailyPicks();
   if (!ids.length) return '';
-  return `<section class="s12 shelf" aria-labelledby="picks-h"><div class="shelf-h"><div><h3 id="picks-h">Today's picks</h3><p>${ids.length} titles with box art, each from a different platform. A new set every day.</p></div></div>
+  return `<section class="s12 shelf" aria-labelledby="picks-h"><div class="shelf-h"><div><h3 id="picks-h">Today's picks</h3><p>${ids.length} covers, one per platform. New every day.</p></div></div>
     <div class="gal picks">${ids.map(i => galCardHTML(i)).join('')}</div></section>`;
 }
 

@@ -35,7 +35,7 @@ const App = {
     $('#roll-ic').innerHTML = icon('dice', 16);
     $('#help-ic').innerHTML = icon('help', 16);
     this.paintTheme();
-    $('#ver').textContent = `${D.meta.version} · schema v${D.meta.schema_version ?? '?'}`;
+    $('#ver').innerHTML = `<i class="fd" id="fd" aria-hidden="true"></i>${esc(`${D.meta.version} · schema v${D.meta.schema_version ?? '?'}`)}`;
     S.onChange = () => this.schedule();
     S.state.grain = store.get('grain', 'entries') === 'links' ? 'links' : 'entries';
     S.changed();
@@ -47,6 +47,21 @@ const App = {
     if (!this.D) return;
     if (this.ui.view === 'overview' || (this.ui.view === 'browse' && this.ui.browse.mode === 'gallery')) this.renderView();
     if (this.sel != null) Drawer.render();
+  },
+  aboutText() {
+    const m = this.D.meta, day = s => (s || '').slice(0, 10), f = this.fresh, hosted = !!window.ROMGI.data;
+    const status = !f ? '' : f.state === 'current' ? ' It matches the latest catalogue romgi has published.' : ` romgi has since published the catalogue of ${esc(day(f.latest.generated_at))}.`;
+    return `Catalogue of ${esc(day(m.generated_at))} (version ${esc(m.version)}) from <a href="${esc(m.source_repo)}" target="_blank" rel="noopener">romgi</a>, built ${esc(day(m.built_at))}.${status}${hosted ? ' This site checks romgi every three hours and rebuilds when there is something new.' : ''} <a href="https://github.com/aldoruizluna/romgi-explorer" target="_blank" rel="noopener">Source code</a> (MIT).`;
+  },
+  /** The dot beside the version: green when romgi has nothing newer, amber when it has. */
+  paintFresh() {
+    const f = this.fresh, fd = $('#fd'), v = $('#ver');
+    if (!f || !fd) return;
+    fd.dataset.s = f.state;
+    const day = s => (s || '').slice(0, 10);
+    v.dataset.tip = f.state === 'current' ? `Up to date with romgi's catalogue of ${day(this.D.meta.generated_at)}.`
+      : `romgi has published a newer catalogue (${day(f.latest.generated_at)}). This site rebuilds itself within a few hours.`;
+    if ($('#modal').classList.contains('on')) this.help();
   },
   paintTheme() { $('#theme-ic').innerHTML = icon(Theme.effective() === 'dark' ? 'sun' : 'moon', 16); },
   schedule() { if (this._raf) return; this._raf = requestAnimationFrame(() => { this._raf = 0; this.refresh(); }); },
@@ -235,6 +250,8 @@ const App = {
         <dt>${k('Esc')}</dt><dd>Close the entry drawer or this panel.</dd>
       </dl>
       <p class="muted" style="margin:18px 0 0">Entries are releases (title, platform and region). Links are the files offered for them, so one entry can have several. Switch the count with the Entries and Links toggle above the tabs.</p>
+      <h3 style="margin:18px 0 0;font-size:14px">About this data</h3>
+      <p class="muted" style="margin:6px 0 0">${this.aboutText()}</p>
       <div style="display:flex;justify-content:flex-end;margin-top:16px"><button class="btn primary" data-act="close-modal">Close</button></div></div>`;
     $('#modal').classList.add('on');
   },
@@ -306,6 +323,7 @@ async function boot() {
     App.mount();
     Loader.done();
     loadArt();                       // not awaited: covers are an extra on top of a page that already works
+    checkFreshness();                // likewise: a dot beside the version
   } catch (e) { console.error(e); Loader.fail(e); }
 }
 window.__app = App;
