@@ -5,7 +5,7 @@ bundle.py - build the self-contained version of the explorer (the dataset is emb
   python3 bundle.py --db romdb.db --version-json version.json        # rebuilds the dataset
   python3 bundle.py --dataset dist/dataset.snapshot.json.gz          # reuse a dataset you already built
   python3 bundle.py --dataset dist/dataset.snapshot.json.gz --pages --out-dir site    # GitHub Pages: a small index.html
-                                                                                       # plus catalogue.<hash>.bin and version.json
+                                                                                       # plus catalogue.<hash>.bin, version.json and the files of the installable app
 
 Writes, into dist/:
   romgi-explorer.artifact.html     page fragment, the form the Artifact tool publishes
@@ -25,6 +25,8 @@ import sys
 from pathlib import Path
 
 import build_dataset as bd
+import icons
+import pwa
 from compose import compose
 
 HERE = Path(__file__).resolve().parent
@@ -123,9 +125,15 @@ def main():
             (out / "sql-worker.js").write_bytes((HERE / "web" / "worker" / "sql-worker.js").read_bytes())
             fetch_sqljs(str(out / "vendor" / "sqljs"))
             sql_cfg = {"db": db_name, "gz": len(blob), "bytes": int.from_bytes(blob[-4:], "little"), "worker": "sql-worker.js", "sqljs": "vendor/sqljs/"}
+        icons.write(out / "icons")
+        (out / "manifest.webmanifest").write_text(json.dumps(pwa.manifest("Every release and every link in the romgi ROM catalogue, sliceable and pivotable."), indent=1) + "\n", encoding="utf-8")
         page = compose("snapshot", "", standalone=True, pages=True, data_url=name, hero=hero, art_url=art_name, site_url=a.site_url, sql=sql_cfg, data_bytes=len(gz),
                        detail_url=detail_name, detail_bytes=len(detail_gz), built_at=built_at or "", latest=latest)
         (out / "index.html").write_text(page, encoding="utf-8")
+        # the service worker keeps the page and the catalogue in the visitor's browser; its id changes with any of them
+        worker, saved = pwa.service_worker(out, name, detail_name, art_name, {"data": name, "detail": detail_name, "version": meta["version"],
+                                                                         "generated_at": meta.get("generated_at"), "built_at": built_at}, stamp=built_at or "")
+        (out / "sw.js").write_text(worker, encoding="utf-8")
         # what a visitor's browser compares with romgi's live version.json to say whether this build is current
         (out / "version.json").write_text(json.dumps({
             "built_at": built_at, "data": name, "detail": detail_name, "art": art_name or None, "db": db_name or None,
@@ -139,6 +147,7 @@ def main():
         if db_name:
             print(f"sql copy   {mb(len(blob))}  {out}/{db_name}   (downloaded only when someone runs a query)")
         print(f"pages      {mb(len(page.encode()))}  {out}/index.html   (noindex)")
+        print(f"offline    {len(saved['required']) + len(saved['optional'])} files saved by {out}/sw.js when the app installs (the database is not one of them)")
         return
     art = compose("snapshot", b64, standalone=False)
     std = compose("snapshot", b64, standalone=True)

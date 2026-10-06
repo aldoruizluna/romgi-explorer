@@ -76,7 +76,16 @@ them to `data/history.json`), builds the dataset, checks it against SQL, and dep
   totals switch on when it lands, and until then they say so;
 - the box-art paths as a third file, loaded once the titles are in, and the covers themselves only as they scroll into view;
 - a link-free copy of the database (`livedb.py`) and [sql.js](https://github.com/sql-js/sql.js) (checked against a pinned hash), which
-  the SQL console downloads only when someone runs a query, and then keeps in the browser.
+  the SQL console downloads only when someone runs a query, and then keeps in the browser;
+- a web app manifest, icons and a service worker (`sw.js`), so the site can be installed and then opens with no connection.
+
+**Installable and offline.** Once the page has its own downloads, it registers a service worker that saves the page, the fonts and the
+three data files (about 6 MB) in the browser. After that the app opens from that copy with the network gone; covers, which come from
+other hosts, need a connection. The worker's id is a hash of the page and the data, so when a rebuild changes either, the browser installs
+the new worker in the background and the page offers "Reload" (it names the newer catalogue when there is one); nothing changes under
+someone who is reading, and the slice and the open card come back from the address. A build whose files cannot all be saved is not
+installed, so the app already in charge keeps working. The SQL console's database is kept by its own worker, only after first use. In
+the help dialog, "Offline and install" says whether the copy is saved and offers the browser's install prompt.
 
 A run that fails any step leaves the previous site up. The catalogue itself is never committed; it is fetched fresh each time. Fonts are
 served from the site, so the only third-party requests are the cover images, and only for covers that are on screen. A dot beside the
@@ -104,9 +113,10 @@ livedb.py           romdb.db -> the link-free copy the hosted SQL console runs o
 vendor_sqljs.py     fetches sql.js for the hosted site, verified against a pinned hash
 bundle.py           builds the hosted site (--pages) or the single-file versions into dist/
 compose.py          assembles the page from web/
+pwa.py, icons.py    the web app manifest, the service worker's build id and file lists, and the app icons (drawn without an image library)
 refresh_history.py  adds the weekly snapshots published since data/history.json was written
-web/                index.html, css/, js/ (util, data, engine, charts, views, collections, SQL in the browser),
-                    worker/ (the SQL engine), fonts/ (self-hosted, OFL), og/ (the link-preview card)
+web/                index.html, css/, js/ (util, data, engine, charts, views, collections, SQL in the browser, links, the offline app),
+                    sw.js (the service worker template), worker/ (the SQL engine), fonts/ (self-hosted, OFL), og/ (the link-preview card)
 data/history.json   weekly snapshot sizes, extracted from the romgi git history
 docs/img/           the screenshots above
 tests/              dataset-vs-SQL parity, a random-slice property test of the engine, the hosted files' transport, the engine
@@ -133,6 +143,7 @@ node tests/sources.test.js dist/fixture/romdb.db dist/fixture/dataset.json.gz
 # the built site in a real browser (npm install --no-save playwright-core; CHROME_PATH or /usr/bin/google-chrome):
 node tests/smoke.test.js site
 node tests/url.test.js dist/dataset.snapshot.json.gz
+node tests/offline.test.js site dist/dataset.snapshot.json.gz dist/art.snapshot.json.gz     # builds two newer sites from the dataset; a few minutes
 ```
 
 The first checks every flag, size class, region, source, pack and format count against SQL, and that the table is stored in the order
@@ -154,6 +165,11 @@ names a catalogue no longer has are skipped and counted, and that bad values are
 `sources.test.js` checks the explorer on a catalogue with a source it has never seen: colour slots, source counts, the "Offered by"
 filter and its printed SQL against the database. `smoke.test.js` opens the built site in a real browser and uses it: the overview, a
 search, a filter, a card, every view, the SQL console on the downloaded copy, a phone-width page, and that only expected hosts were asked for.
+`offline.test.js` checks the installable app: the manifest, the icons' real sizes and the worker's file lists against the site, then in
+Chrome (with the server answering like GitHub Pages, ten-minute cache lifetime and all) that a first visit saves the app and it opens
+with the network gone without one request reaching the server, that a newer build installs quietly and waits while the open page keeps
+its own files, that a build missing a file is not installed and leaves nothing behind, that the reload brings the new build and drops the
+old copy, that a second tab is told, and that the new build opens offline too.
 
 ## Roadmap
 

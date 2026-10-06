@@ -106,7 +106,7 @@ const App = {
     const day = s => (s || '').slice(0, 10);
     return `<div class="notice info" role="status">${icon('alert', 16)}<div><b>romgi's newest catalogue looks incomplete.</b> The one dated ${esc(day(L.generated_at))} has ${esc(L.reason)}. This explorer still shows the catalogue of ${esc(day(this.D.meta.generated_at))} and will switch when romgi publishes a complete one.</div></div>`;
   },
-  paintTheme() { $('#theme-ic').innerHTML = icon(Theme.effective() === 'dark' ? 'sun' : 'moon', 16); },
+  paintTheme() { $('#theme-ic').innerHTML = icon(Theme.effective() === 'dark' ? 'sun' : 'moon', 16); Theme.paintMeta(); },
   schedule() { if (this._raf) return; this._raf = requestAnimationFrame(() => { this._raf = 0; this.refresh(); }); },
   refresh() {
     this.updateRail(); this.renderScope(); this.renderTabs(); this.renderView();
@@ -286,7 +286,7 @@ const App = {
   },
   help() {
     const k = (...a) => a.map(x => `<span class="kbd">${esc(x)}</span>`).join(' ');
-    $('#modal').innerHTML = `<div class="box" role="dialog" aria-label="Help"><h2>How slicing works</h2>
+    $('#modal').innerHTML = `<div class="box" role="dialog" aria-label="Help" data-modal="help"><h2>How slicing works</h2>
       <p class="muted" style="margin:6px 0 0">Every filter narrows entries and links together. Counts next to each value show what you would get if you added that value, given the other filters.</p>
       <dl class="keys">
         <dt>${k('Click')}</dt><dd>Include a value. Several values in one filter mean any of them.</dd>
@@ -300,6 +300,7 @@ const App = {
       <p class="muted" style="margin:18px 0 0">Entries are releases (title, platform and region). Links are the files offered for them, so one entry can have several. Switch the count with the Entries and Links toggle above the tabs.</p>
       <h3 style="margin:18px 0 0;font-size:14px">About this data</h3>
       <p class="muted" style="margin:6px 0 0">${this.aboutText()}</p>
+      ${Pwa.helpHTML()}
       <div style="display:flex;justify-content:flex-end;margin-top:16px"><button class="btn primary" data-act="close-modal">Close</button></div></div>`;
     $('#modal').classList.add('on');
   },
@@ -384,6 +385,7 @@ async function boot() {
     Loader.done();
     if (App.D.detailReady) loadArt(); else loadDetail();      // not awaited: the page already works; titles, then covers, follow
     checkFreshness();                // likewise: a dot beside the version
+    Pwa.init();                      // and the offline copy, once the page's own downloads are done
   } catch (e) { console.error(e); Loader.fail(e); }
 }
 window.__app = App;

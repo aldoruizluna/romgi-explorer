@@ -5,6 +5,8 @@ import html
 import json
 from pathlib import Path
 
+import pwa
+
 WEB = Path(__file__).resolve().parent / "web"
 
 GOOGLE_FONTS = (
@@ -65,7 +67,7 @@ def compose(mode: str, data_b64: str = "", standalone: bool = False, pages: bool
             data_url: str = "", hero: dict | None = None, art_url: str = "", site_url: str = "", sql: dict | None = None, data_bytes: int = 0,
             detail_url: str = "", detail_bytes: int = 0, built_at: str = "", latest: dict | None = None) -> str:
     """mode: 'local' (talks to serve.py) or 'snapshot' (dataset embedded, or fetched from data_url).
-    Fragment form is what the Artifact tool wants; pages=True adds noindex and serves the fonts from the site."""
+    Fragment form is what the Artifact tool wants; pages=True adds noindex, serves the fonts from the site and makes it installable."""
     tpl, css, js = read_parts()
     js = js.replace("</script", "<\\/script")
     out = (tpl.replace("<!--@FONTS@-->", self_hosted_fonts() if pages else GOOGLE_FONTS)
@@ -78,5 +80,5 @@ def compose(mode: str, data_b64: str = "", standalone: bool = False, pages: bool
            .replace("/*@DATA@*/", data_b64).replace("/*@JS@*/", js + "\nboot();"))
     head = STANDALONE_HEAD
     if pages:
-        head = head.replace("<style>", ROBOTS + (og_meta(site_url) if site_url else "") + "<style>", 1)
+        head = head.replace("<style>", ROBOTS + (og_meta(site_url) if site_url else "") + pwa.head_tags() + "<style>", 1)
     return head + out + "</body></html>" if standalone else out

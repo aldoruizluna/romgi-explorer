@@ -26,6 +26,7 @@
     </div>
     <div class="top-actions">
       <button class="btn roll" data-act="roll" aria-label="Roll the dice: open a random entry" data-tip="Open a random entry from the current slice (R)"><span id="roll-ic"></span><span class="lbl-hide">Roll</span></button>
+      <span class="net" id="net" role="status" hidden><i aria-hidden="true"></i><span class="t">Offline</span></span>
       <span class="ver" id="ver"></span>
       <button class="btn icon ghost" data-act="theme" aria-label="Switch theme" data-tip="Switch theme (T)"><span id="theme-ic"></span></button>
       <button class="btn icon ghost" data-act="help" aria-label="Help and shortcuts" data-tip="Help and shortcuts (?)"><span id="help-ic"></span></button>
@@ -44,6 +45,7 @@
   <div class="scrim" id="scrim" data-act="scrim"></div>
   <aside class="drawer" id="drawer" aria-label="Entry details" aria-hidden="true"></aside>
   <div class="tip" id="tip" role="tooltip" aria-hidden="true"></div>
+  <div class="pwa-bar" id="pwa-bar" role="status" aria-live="polite"></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="modal" id="modal" data-act="modal-bg"></div>
 </div>

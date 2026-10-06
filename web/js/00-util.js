@@ -226,4 +226,6 @@ const Theme = {
   },
   apply() { const t = this.get(); if (t !== 'system') document.documentElement.setAttribute('data-theme', t); Color.reset(); },
   toggle() { store.set('theme', this.effective() === 'dark' ? 'light' : 'dark'); this.apply(); },
+  /** The browser's own bars (an installed app's title bar, a phone's address bar) take the page's background. */
+  paintMeta() { const m = $('meta[name="theme-color"]'), c = Color.css('--bg'); if (m && c) m.content = c; },
 };

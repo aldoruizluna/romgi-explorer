@@ -131,6 +131,11 @@ jobs:
         env:
           CHROME_PATH: /usr/bin/google-chrome
 
+      - name: Check the installable app (saved on a first visit, opens offline, takes a newer build when asked)
+        run: node tests/offline.test.js site dist/dataset.snapshot.json.gz dist/art.snapshot.json.gz
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+
       - name: Write the run summary
         run: python3 drift.py summary site data/pick.json
 
