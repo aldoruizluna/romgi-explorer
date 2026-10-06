@@ -142,7 +142,8 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "romgi-explorer"
 
     def log_message(self, fmt, *args):
-        if "/api/" in (args[0] if args else ""):
+        # send_error() logs an HTTPStatus before any request line exists, so compare as text and only log API calls
+        if "/api/" in (str(args[0]) if args else ""):
             sys.stderr.write("%s %s\n" % (self.command, self.path.split("?")[0]))
 
     def _host_ok(self):
@@ -204,6 +205,16 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(404, "Not found", "text/plain")
 
 
+class Server(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        # a browser cancelling a request, or a port check that connects and hangs up, is not worth a traceback
+        if isinstance(sys.exc_info()[1], (ConnectionResetError, BrokenPipeError, ConnectionAbortedError)):
+            return
+        super().handle_error(request, client_address)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--db", required=True)
@@ -215,8 +226,7 @@ def main():
         sys.exit(f"database not found: {a.db}")
     State.db = str(Path(a.db).resolve())
     load_dataset(State.db, a.version_json)
-    srv = ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
-    srv.daemon_threads = True
+    srv = Server(("127.0.0.1", a.port), Handler)
     url = f"http://127.0.0.1:{a.port}/"
     print(f"romgi explorer ready: {url}  (database {State.db})", flush=True)
     if a.open:
