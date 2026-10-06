@@ -132,6 +132,12 @@ the whole dataset: counts, facets, collections and cross-tabs agree, the size me
 once the detail arrives the size totals and the sort by size agree too. The last runs the browser's SQL engine: what may run, that
 writes fail, CSV quoting, and every example the console offers.
 
+## Roadmap
+
+[docs/ROADMAP.md](docs/ROADMAP.md) lays out what comes next: making the build robust to romgi changing, permalinks, grouping revisions
+into games, a richer entry card, enrichment from reference datasets, a local-only personal shelf, and what "more sources" can and cannot
+mean. Each item says why, how big it is and how we will know it worked.
+
 ## License
 
 The explorer's code is [MIT](LICENSE). The catalogue it reads belongs to romgi and the sources it indexes; the license covers this
