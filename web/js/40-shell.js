@@ -12,7 +12,7 @@ const TABS = [
 ];
 const DEFAULT_UI = {
   view: 'overview', open: ['brand', 'plat', 'src', 'reg'], showAll: [], find: {}, twin: [],
-  browse: { mode: 'table', sortKey: 'title', dir: 1, density: 'cozy' },
+  browse: { mode: 'table', sortKey: 'title', dir: 1, density: 'cozy', artOnly: true, galSort: 'ra' },
   pivot: { row: 'plat', col: 'src', measure: 'links', norm: 'none', top: 20, sort: 'value', totals: true },
   treemap: 'entries', stack: 'abs', sqlpeek: false, schemaTable: 'entries', sqlText: '',
 };
@@ -41,6 +41,12 @@ const App = {
     S.changed();
     this.buildRail(); this.renderTabs(); this.bind();
     this.refresh();
+  },
+  /** The cover paths have arrived (or failed): redraw what shows covers. */
+  artReady() {
+    if (!this.D) return;
+    if (this.ui.view === 'overview' || (this.ui.view === 'browse' && this.ui.browse.mode === 'gallery')) this.renderView();
+    if (this.sel != null) Drawer.render();
   },
   paintTheme() { $('#theme-ic').innerHTML = icon(Theme.effective() === 'dark' ? 'sun' : 'moon', 16); },
   schedule() { if (this._raf) return; this._raf = requestAnimationFrame(() => { this._raf = 0; this.refresh(); }); },
@@ -271,21 +277,35 @@ const App = {
 
 /* ------------------------------------------------------------ loader and boot */
 const Loader = {
-  n: 0,
-  phase(t) { const l = $('#loader'); if (!l) return; $('.phase', l).textContent = t; $$('.px i', l).forEach((i, k) => i.classList.toggle('on', k <= this.n)); this.n = Math.min(7, this.n + 1); },
+  n: 0, dl: false,
+  phase(t) { const l = $('#loader'); if (!l) return; $('.phase', l).textContent = t; if (!this.dl) { $$('.px i', l).forEach((i, k) => i.classList.toggle('on', k <= this.n)); this.n = Math.min(7, this.n + 1); } },
+  /** While the catalogue file downloads the eight squares are the progress bar. */
+  progress(got, total) {
+    const l = $('#loader'); if (!l) return;
+    this.dl = true;
+    const f = total ? Math.min(1, got / total) : 0, mb = x => (x / 1e6).toFixed(1);
+    $$('.px i', l).forEach((i, k) => i.classList.toggle('on', k < Math.ceil(f * 8)));
+    $('.phase', l).textContent = total ? `Downloading catalogue · ${mb(got)} of ${mb(total)} MB` : `Downloading catalogue · ${mb(got)} MB`;
+  },
   done() { const l = $('#loader'); if (!l) return; $$('.px i', l).forEach(i => i.classList.add('on')); l.classList.add('done'); setTimeout(() => l.remove(), 450); },
   fail(e) { const l = $('#loader'); $('.inner', l).innerHTML = `<div class="word">romgi</div><div class="err"><b>The catalogue could not be loaded.</b><br>${esc(e.message || e)}</div>`; },
 };
+/** Resolves after the first frame has been painted; a background tab, where frames are paused, falls back to a timer. */
+const afterFirstPaint = () => new Promise(done => { requestAnimationFrame(() => setTimeout(done, 0)); setTimeout(done, 400); });
 async function boot() {
   Theme.apply(); Tip.init(); App.loadUI();
   try {
+    await afterFirstPaint();
     const raw = await loadDataset(t => Loader.phase(t));
     Loader.phase('Indexing titles and links'); await sleep(20);
-    App.D = prepare(raw);
+    App.D = await runSliced(prepareSteps(raw));
     Loader.phase('Counting every facet'); await sleep(20);
-    App.S = new Slicer(App.D);
+    App.S = new Slicer(App.D, { defer: true });
+    await runSliced(App.S.baseSteps());
+    await runSliced(collectionSteps());
     App.mount();
     Loader.done();
+    loadArt();                       // not awaited: covers are an extra on top of a page that already works
   } catch (e) { console.error(e); Loader.fail(e); }
 }
 window.__app = App;

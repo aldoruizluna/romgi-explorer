@@ -38,13 +38,19 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
       - name: Build the dataset
-        run: python3 build_dataset.py --db data/romdb.db --version-json data/version.json --out dist/dataset.snapshot.json.gz
+        run: python3 build_dataset.py --db data/romdb.db --version-json data/version.json --out dist/dataset.snapshot.json.gz --art-out dist/art.snapshot.json.gz
 
       - name: Check the dataset against SQL
         run: python3 tests/test_dataset.py data/romdb.db dist/dataset.snapshot.json.gz
 
-      - name: Build the page
-        run: python3 bundle.py --dataset dist/dataset.snapshot.json.gz --pages --out-dir site
+      - name: Check the browser engine against SQL
+        run: node tests/engine.test.js data/romdb.db dist/dataset.snapshot.json.gz 12
+
+      - name: Build the site
+        run: python3 bundle.py --dataset dist/dataset.snapshot.json.gz --art dist/art.snapshot.json.gz --pages --out-dir site
+
+      - name: Check the site's catalogue file unpacks to the same dataset
+        run: node tests/transport.test.js site/catalogue.*.bin dist/dataset.snapshot.json.gz
 
       - uses: actions/upload-pages-artifact@v5
         with:

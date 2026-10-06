@@ -28,7 +28,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 HERE = Path(__file__).resolve().parent
-BUILD_VERSION = 5   # bump when the dataset format changes; serve.py keys its cache on it
+BUILD_VERSION = 6   # bump when the dataset format changes; serve.py keys its cache on it
 
 # Fixed entity order. Colour slots are assigned by this order and never by rank, so a source keeps its colour.
 SOURCE_ORDER = ["minerva", "internet_archive", "nopaystation", "mariocube"]
@@ -122,6 +122,15 @@ URL_COLS = {("links", "url"), ("links", "source_url"), ("entries", "boxart_url")
 _ASCII_LOWER = {i: i + 32 for i in range(65, 91)}
 
 
+TITLE_PUNCT = " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"     # leading ASCII punctuation never decides where a title sorts
+
+
+def title_order_sql(col: str) -> str:
+    """The ORDER BY the explorer's default title order is equal to: empty titles last, leading punctuation ignored."""
+    lit = TITLE_PUNCT.replace("'", "''")
+    return f"(trim({col}) = ''), ltrim(trim({col}), '{lit}') COLLATE NOCASE"
+
+
 def ascii_lower(s: str) -> str:
     """SQLite's lower() only folds ASCII; mirror it exactly so the SQL the UI prints matches the UI."""
     return s.translate(_ASCII_LOWER)
@@ -172,7 +181,7 @@ def q(ident: str) -> str:
     return '"' + ident.replace('"', '""') + '"'
 
 
-def build(db_path, *, local=False, version_json=None, history_json=None, profiles=True, keep_slugs=False, log=print) -> dict:
+def build(db_path, *, local=False, version_json=None, history_json=None, profiles=True, keep_slugs=False, keep_art=False, log=print) -> dict:
     t0 = time.time()
     db_path = str(db_path)
     con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
@@ -236,7 +245,7 @@ def build(db_path, *, local=False, version_json=None, history_json=None, profile
     # ------------------------------------------------------------------ entries
     erows = cur.execute("SELECT slug, rom_id, title, platform, boxart_url, ra_game_id, ra_num_achievements "
                         "FROM entries").fetchall()
-    erows.sort(key=lambda r: (ascii_lower(r[2].strip(" ")), plat_idx[r[3]], r[0]))   # SQL: ORDER BY trim(title) COLLATE NOCASE
+    erows.sort(key=lambda r: (r[2].strip(" ") == "", ascii_lower(r[2].strip(" ").lstrip(TITLE_PUNCT)), plat_idx[r[3]], r[0]))   # SQL: ORDER BY title_order_sql('title')
     eidx = {r[0]: i for i, r in enumerate(erows)}
     nE = len(erows)
 
@@ -353,6 +362,7 @@ def build(db_path, *, local=False, version_json=None, history_json=None, profile
         "db_bytes": page_size * page_count, "page_size": page_size, "page_count": page_count,
         "counts": counts, "built_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "caps": {"sql": local, "urls": local, "art": local, "download": local},
+        "sql_title_order": title_order_sql("e.title"),
         "source_repo": "https://github.com/caprado/romgi",
     }
 
@@ -387,6 +397,8 @@ def build(db_path, *, local=False, version_json=None, history_json=None, profile
     }
     if keep_slugs:
         dataset["_slugs"] = [r[0] for r in erows]
+    if keep_art:          # the hosted site loads these paths as a separate file, after the page is usable
+        dataset["_art"] = e_art
     con.close()
     log(f"built dataset in {time.time() - t0:.1f}s: {nE:,} entries, {nL:,} links, "
         f"{len(slug_x):,} slug exceptions, {len(fixes):,} mojibake titles")
@@ -664,10 +676,12 @@ def main():
     ap.add_argument("--history-json")
     ap.add_argument("--out", help="write gzip'd JSON here")
     ap.add_argument("--local", action="store_true", help="include box-art URLs and enable server-only features")
+    ap.add_argument("--art-out", help="also write the box-art paths of every entry here (gzip'd JSON list), for the hosted site")
     ap.add_argument("--no-profiles", action="store_true")
     ap.add_argument("--stats", action="store_true", help="print the gzip size of every section")
     a = ap.parse_args()
-    ds = build(a.db, local=a.local, version_json=a.version_json, history_json=a.history_json, profiles=not a.no_profiles)
+    ds = build(a.db, local=a.local, version_json=a.version_json, history_json=a.history_json, profiles=not a.no_profiles, keep_art=bool(a.art_out))
+    art = ds.pop("_art", None)
     raw = to_json_bytes(ds)
     gz = gzip.compress(raw, 9)
     print(f"json {len(raw) / 1e6:.2f} MB -> gzip {len(gz) / 1e6:.2f} MB")
@@ -684,6 +698,10 @@ def main():
         Path(a.out).parent.mkdir(parents=True, exist_ok=True)
         Path(a.out).write_bytes(gz)
         print("wrote", a.out)
+    if a.art_out:
+        Path(a.art_out).parent.mkdir(parents=True, exist_ok=True)
+        Path(a.art_out).write_bytes(gzip.compress(to_json_bytes(art), 9))
+        print(f"wrote {a.art_out}  ({sum(1 for x in art if x):,} of {len(art):,} entries have a path)")
 
 
 if __name__ == "__main__":

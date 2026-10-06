@@ -60,6 +60,23 @@ function linkCells(l) {
   };
 }
 
+/** One cover card, used by the gallery and the daily shelf. The placeholder stays underneath until the image has loaded. */
+function galCardHTML(i) {
+  const D = App.D, p = D.platformOf(i), url = D.caps.art ? D.artUrl(i) : null;
+  return `<button class="gcard" data-act="open" data-i="${i}"><span class="art">${url ? `<img loading="lazy" decoding="async" fetchpriority="low" referrerpolicy="no-referrer" alt="" src="${esc(url)}">` : ''}<span class="ph">${esc(p.code)}<small>${esc(D.regIds(i).map(r => REG_CODE[r]).join(' '))}</small></span></span>
+    <span class="meta"><span class="t">${esc(D.titleShown(i))}</span><span class="s">${esc(p.code)} · ${esc(D.regIds(i).map(r => REG_CODE[r]).join(' ') || 'no region')}</span><span class="row">${D.comboSources(D.E.smask[i]).map(s => `<i class="sd" style="--c:var(--src-${s})"></i>`).join('')}${D.E.ran[i] ? `<span class="ra">${icon('trophy', 12)}${D.E.ran[i]}</span>` : ''}</span></span></button>`;
+}
+// covers fade in when they have loaded; one that fails leaves the placeholder showing (load and error do not bubble, so listen while capturing)
+document.addEventListener('load', e => { if (e.target.tagName === 'IMG' && e.target.closest('.gcard .art')) e.target.classList.add('in'); }, true);
+document.addEventListener('error', e => { if (e.target.tagName === 'IMG' && e.target.closest('.gcard .art')) e.target.remove(); }, true);
+const GAL_SORTS = { ra: ['ra', -1, 'Most achievements'], title: ['title', 1, 'A to Z'], sources: ['sources', -1, 'Most sources'], size: ['size', -1, 'Largest'] };
+/** The entries the gallery shows: the slice, in the chosen order, optionally only those that have box art. */
+function galleryIds() {
+  const { S, D } = App, b = App.ui.browse, [key, dir] = GAL_SORTS[b.galSort] || GAL_SORTS.ra;
+  const ids = S.sorted('entries', key, dir);
+  return b.artOnly === false ? ids : ids.filter(i => D.E.artk[i] !== 0);
+}
+
 const VT = { ids: null, rh: 40, cols: null, grain: 'entries', raf: 0 };
 function vtPaint() {
   const sc = $('#vt-scroll'); if (!sc || !VT.ids) return;
@@ -83,7 +100,7 @@ App.views.browse = {
     const pri = c => (c.sort === sortKey ? 100 : c.pri);          // the column you sort by always stays visible
     const room = Math.max(320, root.clientWidth - 32);
     while (cols.length > 3 && cols.reduce((a, c) => a + minOf(c), 0) + cols.length * 10 + 28 > room) { const drop = cols.reduce((m, c) => (pri(c) < pri(m) ? c : m)); cols = cols.filter(c => c !== drop); }
-    const ids = S.sorted(g, sortKey, b.dir);
+    const ids = b.mode === 'gallery' && g === 'entries' ? galleryIds() : S.sorted(g, sortKey, b.dir);
     VT.ids = ids; VT.grain = g; VT.cols = cols; VT.rh = b.density === 'compact' ? 32 : 40;
     const minw = cols.reduce((a, c) => a + minOf(c), 0) + cols.length * 10 + 28;
     const head = cols.map(c => c.sort
@@ -93,6 +110,8 @@ App.views.browse = {
     root.innerHTML = `<div class="vt-wrap">
       <div class="vt-bar">
         <div class="seg" role="group" aria-label="Layout"><button data-act="bmode" data-m="table" aria-pressed="${b.mode === 'table'}">${icon('table', 14)}Table</button><button data-act="bmode" data-m="gallery" aria-pressed="${b.mode === 'gallery'}" ${g === 'links' ? 'disabled' : ''}>${icon('grid', 14)}Gallery</button></div>
+        ${b.mode === 'gallery' ? `<label class="chk"><input type="checkbox" id="gal-art"${b.artOnly !== false ? ' checked' : ''}><span>Box art only</span></label>
+          <select id="gal-sort" aria-label="Sort the gallery">${Object.entries(GAL_SORTS).map(([v, [, , l]]) => `<option value="${v}"${(b.galSort || 'ra') === v ? ' selected' : ''}>${l}</option>`).join('')}</select>` : ''}
         ${b.mode === 'table' ? `<div class="seg" role="group" aria-label="Density"><button data-act="bdens" data-m="cozy" aria-pressed="${b.density !== 'compact'}">Cozy</button><button data-act="bdens" data-m="compact" aria-pressed="${b.density === 'compact'}">Compact</button></div>` : ''}
         <span class="muted"><span class="num">${fmtN(ids.length)}</span> ${g}${ids.length ? '' : ' match'}</span>
         <span class="sp"></span>
@@ -107,7 +126,11 @@ App.views.browse = {
   },
   after(root) {
     const b = App.ui.browse;
-    if (b.mode === 'gallery') return this.gallery(root);
+    if (b.mode === 'gallery') {
+      $('#gal-art', root)?.addEventListener('change', e => { b.artOnly = e.target.checked; App._galN = 0; App.saveUI(); App.renderView(); });
+      $('#gal-sort', root)?.addEventListener('change', e => { b.galSort = e.target.value; App._galN = 0; App.saveUI(); App.renderView(); });
+      return this.gallery(root);
+    }
     const sc = $('#vt-scroll', root); if (!sc) return;
     const bar = $('.vt-bar', root), head = $('.stage-head');
     sc.style.height = Math.max(340, innerHeight - 52 - head.offsetHeight - 32 - bar.offsetHeight - 4) + 'px';
@@ -115,24 +138,22 @@ App.views.browse = {
     sc.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset.act === 'open') Drawer.open(+e.target.dataset.i); });
     vtPaint();
   },
-  gallery(root, n = App._galN || 96) {
-    const { D, S } = App, ids = S.sorted('entries', 'title', 1), box = $('#gal', root);
+  gallery(root, n = App._galN || 48) {
+    const { D } = App, ids = galleryIds(), box = $('#gal', root);
     App._galN = n;
     const show = ids.length ? Array.from(ids.subarray(0, n)) : [];
-    box.innerHTML = `<div class="gal">${show.map(i => {
-      const url = D.caps.art ? D.artUrl(i) : null, p = D.platformOf(i), fixed = D.fixTitle(i);
-      return `<button class="gcard" data-act="open" data-i="${i}"><span class="art">${url ? `<img loading="lazy" decoding="async" referrerpolicy="no-referrer" alt="" src="${esc(url)}">` : ''}<span class="ph">${esc(p.code)}<small>${esc(D.regIds(i).map(r => REG_CODE[r]).join(' '))}</small></span></span>
-        <span class="meta"><span class="t">${esc(D.titleShown(i))}</span><span class="row">${D.comboSources(D.E.smask[i]).map(s => `<i class="sd" style="--c:var(--src-${s})"></i>`).join('')}${D.E.ran[i] ? `<span class="ra">${icon('trophy', 12)}${D.E.ran[i]}</span>` : ''}</span></span></button>`;
-    }).join('')}</div>${ids.length > n ? `<div style="padding:0 14px 16px"><button class="btn" data-act="galmore">Show ${Math.min(96, ids.length - n)} more of ${fmtN(ids.length)}</button></div>` : ''}`;
-    if (!D.caps.art) box.insertAdjacentHTML('afterbegin', `<div class="notice info" style="margin:14px 14px 0">${icon('info', 16)}<div>Box art is only shown when the explorer runs on your machine; the hosted snapshot carries no image links.</div></div>`);
-    box.addEventListener('error', e => { if (e.target.tagName === 'IMG') e.target.remove(); }, true);
+    const note = D.caps.art ? '' : App.artState === 'loading' ? 'Loading box art…'
+      : App.artState === 'failed' ? 'Box art could not be loaded, so covers are shown as placeholders.'
+        : 'Box art is only shown when the explorer runs on your machine; this copy carries no image links.';
+    box.innerHTML = `${note ? `<div class="notice info" style="margin:14px 14px 0">${icon('info', 16)}<div>${esc(note)}</div></div>` : ''}
+      <div class="gal">${show.map(galCardHTML).join('') || '<div class="vt-empty" style="grid-column:1/-1">Nothing in this slice has box art.</div>'}</div>${ids.length > n ? `<div style="padding:0 14px 16px"><button class="btn" data-act="galmore">Show ${Math.min(48, ids.length - n)} more of ${fmtN(ids.length)}</button></div>` : ''}`;
   },
 };
 Object.assign(App.handlers, {
   sort(el) { const b = App.ui.browse; if (b.sortKey === el.dataset.k) b.dir = -b.dir; else { b.sortKey = el.dataset.k; b.dir = 1; } App.saveUI(); App.renderView(); },
   bmode(el) { App.ui.browse.mode = el.dataset.m; App.saveUI(); App.renderView(); },
   bdens(el) { App.ui.browse.density = el.dataset.m; App.saveUI(); App.renderView(); },
-  galmore() { App.views.browse.gallery($('#view'), (App._galN || 96) + 96); },
+  galmore() { App.views.browse.gallery($('#view'), (App._galN || 48) + 48); },
   dstep(el) { Drawer.step(+el.dataset.d); },
   export(el) {
     const { S } = App, b = App.ui.browse, g = S.state.grain, key = (g === 'entries' ? ENTRY_COLS : LINK_COLS).some(c => c.sort === b.sortKey) ? b.sortKey : 'title';

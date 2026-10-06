@@ -85,7 +85,8 @@ function parseQuery(q) {
 const likeEsc = s => s.replace(/[\\%_]/g, '\\$&');
 
 class Slicer {
-  constructor(D) {
+  /** defer: leave the base counts to baseSteps(), which a caller can run in slices; otherwise they are computed here. */
+  constructor(D, { defer = false } = {}) {
     this.D = D; this.E = D.E; this.L = D.L;
     this.facets = makeFacets(D);
     this.byId = Object.fromEntries(this.facets.map(f => [f.id, f]));
@@ -97,9 +98,17 @@ class Slicer {
     this.state = { grain: 'entries', q: '', f: {} };
     this.version = 0;
     this.cache = {};
-    // Unfiltered counts per grain: the stable ordering for facet lists and the denominator for "of N".
     this.base = {};
-    for (const g of ['links', 'entries']) { this.state.grain = g; this.recompute(); this.base[g] = Object.fromEntries(this.facets.map(f => [f.id, this.counts(f.id)])); }
+    if (!defer) { const g = this.baseSteps(); while (!g.next().done); }
+  }
+  /** Unfiltered counts per grain: the stable ordering for facet lists and the denominator for "of N". Yields between facets. */
+  *baseSteps() {
+    for (const grain of ['links', 'entries']) {
+      this.state.grain = grain; this.recompute();
+      const o = {};
+      for (const f of this.facets) { o[f.id] = this.counts(f.id); yield; }
+      this.base[grain] = o;
+    }
     this.baseK = this.kpis();
   }
 
@@ -120,12 +129,22 @@ class Slicer {
   setQuery(q) { this.state.q = q; this.changed(); }
   setGrain(g) { if (g === this.state.grain) return; this.state.grain = g; this.changed(); }
   /** preset: { grain?, q?, <facetId>: [values], exclude?: {<facetId>: [values]} } */
-  applyPreset(p) {
-    this.state.f = {}; this.state.q = p.q || ''; if (p.grain) this.state.grain = p.grain;
+  /** The state a preset stands for. Flags may be named by id; grain defaults to the current one. */
+  stateOf(p) {
+    const st = { grain: p.grain || this.state.grain, q: p.q || '', f: {} };
+    const fs = id => st.f[id] || (st.f[id] = { inc: new Set(), exc: new Set(), mode: 'any' });
     const idx = (k, x) => (k === 'flag' && typeof x === 'string' ? this.D.dims.flags.findIndex(f => f.id === x) : x);
-    for (const [k, v] of Object.entries(p)) if (this.byId[k] && Array.isArray(v)) this.fs(k).inc = new Set(v.map(x => idx(k, x)));
-    if (p.exclude) for (const [k, v] of Object.entries(p.exclude)) if (this.byId[k]) this.fs(k).exc = new Set(v);
-    this.changed();
+    for (const [k, v] of Object.entries(p)) if (this.byId[k] && Array.isArray(v)) fs(k).inc = new Set(v.map(x => idx(k, x)));
+    if (p.exclude) for (const [k, v] of Object.entries(p.exclude)) if (this.byId[k]) fs(k).exc = new Set(v);
+    return st;
+  }
+  applyPreset(p) { Object.assign(this.state, this.stateOf(p)); this.changed(); }
+  /** How many entries and links a preset shows, leaving the current slice alone. */
+  countPreset(p) {
+    const keep = { state: this.state, cache: this.cache };
+    this.state = this.stateOf(p); this.cache = {};
+    try { this.recompute(); return { entries: this.res.nVisE, links: this.res.nVisL }; }
+    finally { this.state = keep.state; this.cache = keep.cache; this.recompute(); }
   }
   changed() { this.version++; this.cache = {}; this.recompute(); this.onChange && this.onChange(); }
   serialize() {
@@ -347,6 +366,10 @@ class Slicer {
     const { E, L, res } = this;
     const R = this.dimOf(rowId), C = this.dimOf(colId);
     const nr = this.dimSize(R), nc = this.dimSize(C);
+    if (colId == null && rowId && rowId !== 'all' && (measure === 'entries' || measure === 'links') && this.base[measure]?.[rowId] && !this.anyActive()) {
+      // unfiltered: the facet's base count in this grain is the same tally, already computed
+      return (this.cache[ck] = { R, C, nr, nc, cells: Float64Array.from(this.base[measure][rowId].slice(0, nr)), measure });
+    }
     const cells = new Float64Array(nr * nc), cnt = measure === 'avg' ? new Float64Array(nr * nc) : null;
     const rv = [], cv = [];
     const entryMeasure = measure === 'entries' || measure === 'ra';
@@ -461,15 +484,16 @@ class Slicer {
   sql(grain = this.state.grain) {
     const ce = this.conds('e'), cl = this.conds('l');
     const exact = ce.exact && cl.exact;
+    const order = this.D.meta.sql_title_order || 'trim(e.title) COLLATE NOCASE';   // the order the table is stored in
     if (grain === 'entries') {
       const where = [...ce.out];
       if (cl.out.length) where.push(`e.slug IN (SELECT l.entry FROM links l\n    WHERE ${cl.out.join('\n      AND ')})`);
       const w = where.length ? '\nWHERE ' + where.join('\n  AND ') : '';
-      return { exact, select: `SELECT e.slug, e.title, e.platform, e.rom_id\nFROM entries e${w}\nORDER BY trim(e.title) COLLATE NOCASE;`, count: `SELECT COUNT(*)\nFROM entries e${w};` };
+      return { exact, select: `SELECT e.slug, e.title, e.platform, e.rom_id\nFROM entries e${w}\nORDER BY ${order};`, count: `SELECT COUNT(*)\nFROM entries e${w};` };
     }
     const where = [...ce.out, ...cl.out];
     const w = where.length ? '\nWHERE ' + where.join('\n  AND ') : '';
-    return { exact, select: `SELECT e.title, e.platform, l.source_id, l.type, l.format, l.size\nFROM links l JOIN entries e ON e.slug = l.entry${w}\nORDER BY trim(e.title) COLLATE NOCASE;`,
+    return { exact, select: `SELECT e.title, e.platform, l.source_id, l.type, l.format, l.size\nFROM links l JOIN entries e ON e.slug = l.entry${w}\nORDER BY ${order};`,
       count: `SELECT COUNT(*)\nFROM links l JOIN entries e ON e.slug = l.entry${w};` };
   }
   /** SQL for the pivot currently on screen. */

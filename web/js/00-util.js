@@ -28,6 +28,10 @@ const raf = fn => requestAnimationFrame(fn);
 const asciiLower = s => s.replace(/[A-Z]+/g, m => m.toLowerCase());
 const plural = (n, one, many) => `${fmtN(n)} ${n === 1 ? one : many || one + 's'}`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+/** Let the browser paint and answer input before the next slice of work. */
+const yieldToMain = () => (typeof scheduler !== 'undefined' && scheduler.yield ? scheduler.yield() : new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => { c.port1.close(); r(); }; c.port2.postMessage(0); }));
+/** Run a generator that yields between slices of work; returns what it returns. */
+async function runSliced(gen) { for (;;) { const r = gen.next(); if (r.done) return r.value; await yieldToMain(); } }
 
 const store = {
   get(k, d) { try { const v = localStorage.getItem('romgi.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
@@ -128,7 +132,7 @@ const Tip = {
     else node = t.dataset.tip;
     if (!node) return this.hide();
     if (this.el._for !== t || this.el._tk !== t.dataset.tk) { this.el.replaceChildren(typeof node === 'string' ? document.createTextNode(node) : node); this.el._for = t; }
-    this.el.classList.add('on');
+    this.el.classList.add('on'); this.el.setAttribute('aria-hidden', 'false');
     cancelAnimationFrame(this.raf);
     this.raf = raf(() => this.place(x, y));
   },
@@ -139,7 +143,7 @@ const Tip = {
     if (ny + r.height > innerHeight - 8) ny = Math.max(8, y - r.height - 14);
     this.el.style.left = nx + 'px'; this.el.style.top = ny + 'px';
   },
-  hide() { this.el?.classList.remove('on'); if (this.el) this.el._for = null; },
+  hide() { this.el?.classList.remove('on'); if (this.el) { this.el._for = null; this.el.setAttribute('aria-hidden', 'true'); } },
 };
 /** A tooltip body: title, rows of [key, value, colour?], footer. Everything goes through textContent. */
 function tipBox(title, rows = [], foot) {

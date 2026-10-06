@@ -10,6 +10,7 @@ async function loadDataset(onPhase) {
     return r.json();
   }
   if (typeof DecompressionStream === 'undefined') throw new Error('This browser cannot unpack the catalogue. Use a current Chrome, Edge, Firefox or Safari.');
+  if (window.ROMGI.data) return fetchDataset(window.ROMGI.data, onPhase);
   onPhase('Unpacking catalogue');
   await sleep(40);
   const b64 = document.getElementById('romgi-data').textContent.trim();
@@ -20,10 +21,66 @@ async function loadDataset(onPhase) {
   return JSON.parse(text);
 }
 
+/** The hosted site ships the catalogue as its own gzip file: it downloads while the page is already usable, and unpacks as it arrives. */
+async function fetchDataset(url, onPhase) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('The catalogue file answered ' + r.status);
+  const total = +r.headers.get('content-length') || 0;
+  let got = 0;
+  Loader.progress(0, total);
+  const meter = new TransformStream({ transform(chunk, ctl) { got += chunk.length; Loader.progress(got, total); ctl.enqueue(chunk); } });
+  // one JSON document per line ([section, key|null, value] or [section, key, values, offset] for a long column),
+  // parsed as each line completes, in short tasks
+  const raw = {}, put = ([k, kk, v, off]) => {
+    if (kk === null) { raw[k] = v; return; }
+    const sec = raw[k] || (raw[k] = {});
+    if (off === undefined) { sec[kk] = v; return; }
+    const col = sec[kk] || (sec[kk] = []);
+    if (col.length !== off) throw new Error('The catalogue file is damaged (column ' + k + '.' + kk + ' is out of order).');
+    for (let i = 0; i < v.length; i++) col.push(v[i]);
+  };
+  const reader = r.body.pipeThrough(meter).pipeThrough(new DecompressionStream('gzip')).pipeThrough(new TextDecoderStream()).getReader();
+  let parts = [], last = performance.now();
+  const take = async line => { if (!line.trim()) return; put(JSON.parse(line)); if (performance.now() - last > 12) { await yieldToMain(); last = performance.now(); } };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    let s = value, nl;
+    while ((nl = s.indexOf('\n')) !== -1) {
+      parts.push(s.slice(0, nl));
+      const line = parts.length === 1 ? parts[0] : parts.join('');
+      parts = [];
+      await take(line);
+      s = s.slice(nl + 1);
+    }
+    if (s) parts.push(s);
+  }
+  if (parts.length) await take(parts.join(''));
+  return raw;
+}
+
+/** The hosted site ships box-art paths as their own file, fetched once the page is usable; local mode already has them. */
+async function loadArt() {
+  const url = window.ROMGI.art, D = App.D;
+  if (!url || !D || D.caps.art) { App.artState = D && D.caps.art ? 'ready' : 'none'; return; }
+  App.artState = 'loading';
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('answered ' + r.status);
+    const text = await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text();
+    await yieldToMain();
+    const list = JSON.parse(text);
+    if (!Array.isArray(list) || list.length !== D.E.n) throw new Error('not the same catalogue');
+    D.E.art = list; D.caps.art = true; App.artState = 'ready';
+    App.artReady();
+  } catch (e) { App.artState = 'failed'; console.warn('Box art unavailable:', e.message); App.artReady(); }
+}
+
 const slugifyAscii = t => t.toLowerCase().replace(/&/g, ' and ').replace(/\+/g, ' plus ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 const ASCII_ONLY = /^[\x00-\x7f]*$/;
 
-function prepare(raw) {
+/** Builds the arrays the engine scans. A generator so the page can stay responsive: it yields between slices of about 10 ms. */
+function* prepareSteps(raw) {
   const dims = raw.dims, re = raw.entries, rl = raw.links, nE = re.n, nL = rl.n;
   const E = {
     n: nE, title: re.title, rom: re.rom, art: re.art || null,
@@ -42,7 +99,8 @@ function prepare(raw) {
   for (let i = 0; i < nE; i++) E.start[i + 1] = E.start[i] + E.nl[i];
   if (E.start[nE] !== nL) throw new Error('Link offsets do not add up: the dataset is damaged.');
   L.eo = new Uint32Array(nL);
-  for (let i = 0; i < nE; i++) for (let k = E.start[i]; k < E.start[i + 1]; k++) L.eo[k] = i;
+  for (let i = 0; i < nE; i++) { for (let k = E.start[i]; k < E.start[i + 1]; k++) L.eo[k] = i; if ((i & 0xFFFF) === 0xFFFF) yield; }
+  yield;
 
   // link-side derived columns
   L.sb = new Uint8Array(nL);
@@ -62,6 +120,7 @@ function prepare(raw) {
     L.deliv[l] = p >= 0 ? 1 : 0;
     L.pack8[l] = p >= 0 ? p : 255;
     L.coll[l] = p >= 0 ? packColl[p] : 255;
+    if ((l & 0x1FFFF) === 0x1FFFF) yield;
   }
 
   // entry-side derived columns
@@ -104,6 +163,7 @@ function prepare(raw) {
     if (v === undefined) { v = tmap.size; tmap.set(key, v); }
     E.tkey[i] = v;
     E.tl[i] = ASCII_ONLY.test(t) ? t.toLowerCase() : asciiLower(t);
+    if ((i & 0x3FFF) === 0x3FFF) yield;
   }
 
   const D = { raw, dims, E, L, nTitles: tmap.size, meta: raw.meta, caps: raw.meta.caps, slugX, fixes };
@@ -123,6 +183,11 @@ function prepare(raw) {
   D.groupOf = i => (E.group[i] >= 0 ? dims.groups[E.group[i]] : null);
   D.sameTitle = i => { const out = []; const k = E.tkey[i]; for (let j = Math.max(0, i - 40); j < Math.min(nE, i + 41); j++) if (E.tkey[j] === k) out.push(j); return out; };
   return D;
+}
+
+function prepare(raw) {
+  const g = prepareSteps(raw);
+  for (;;) { const r = g.next(); if (r.done) return r.value; }
 }
 
 /** Title-case helpers for presenting dimension values. */

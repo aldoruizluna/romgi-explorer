@@ -13,9 +13,9 @@ const { DatabaseSync } = require('node:sqlite');
 const [, , dbPath, dsPath, roundsArg] = process.argv;
 const rounds = +roundsArg || 120;
 const jsDir = path.join(__dirname, '..', 'web', 'js');
-const code = ['00-util.js', '10-data.js', '20-engine.js'].map(f => fs.readFileSync(path.join(jsDir, f), 'utf8')).join('\n');
-const ctx = vm.createContext({ window: { ROMGI: { mode: 'test' } }, console, performance, TextDecoder, setTimeout, Intl, Uint8Array, Uint16Array, Uint32Array, Int16Array, Int32Array, Float64Array });
-const api = vm.runInContext(code + '\n({ prepare, Slicer })', ctx);
+const code = ['00-util.js', '10-data.js', '20-engine.js', '48-collections.js'].map(f => fs.readFileSync(path.join(jsDir, f), 'utf8')).join('\n');
+const ctx = vm.createContext({ window: { ROMGI: { mode: 'test' } }, App: { handlers: {} }, console, performance, TextDecoder, setTimeout, Intl, Uint8Array, Uint16Array, Uint32Array, Int16Array, Int32Array, Float64Array });
+const api = vm.runInContext(code + '\n({ prepare, Slicer, COLLECTIONS, resolvePreset })', ctx);
 
 const raw = JSON.parse(zlib.gunzipSync(fs.readFileSync(dsPath)).toString('utf8'));
 const D = api.prepare(raw);
@@ -127,6 +127,21 @@ for (let round = 0; round < rounds; round++) {
 S.state = { grain: 'entries', q: '', f: {} }; S.changed();
 expect('empty slice entries', S.res.nVisE, one('SELECT COUNT(*) FROM entries'));
 expect('empty slice links', S.res.nVisL, one('SELECT COUNT(*) FROM links'));
+// every hand-picked collection: its counts equal the SQL for the slice it sets, and counting it leaves the current slice alone
+for (const c of api.COLLECTIONS) {
+  const preset = api.resolvePreset(c.preset, D);
+  if (!preset) { console.log(`skip collection ${c.id}: it names an id this catalogue no longer has`); continue; }
+  S.state = { grain: 'entries', q: '', f: {} }; S.changed();
+  const before = JSON.stringify(S.serialize()), cnt = S.countPreset(preset);
+  expect(`collection ${c.id} leaves the slice alone`, JSON.stringify(S.serialize()), before);
+  S.applyPreset(preset);
+  const sE = S.sql('entries'), sL = S.sql('links');
+  if (!sE.exact) { console.log(`skip collection ${c.id}: inexact SQL`); continue; }
+  expect(`collection ${c.id} entries`, cnt.entries, one(sE.count));
+  expect(`collection ${c.id} links`, cnt.links, one(sL.count));
+  expect(`collection ${c.id} applied`, S.res.nVisE, cnt.entries);
+  console.log(`collection ${c.id}: ${cnt.entries.toLocaleString()} entries, ${cnt.links.toLocaleString()} links`);
+}
 console.log(`${checks.toLocaleString()} checks over ${rounds} random slices in ${((Date.now() - t0) / 1000).toFixed(1)}s, ${skipped} slices skipped for inexact SQL`);
 console.log(fails ? `${fails} FAILED` : 'ALL PASS');
 process.exit(fails ? 1 : 0);

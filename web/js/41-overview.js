@@ -87,7 +87,8 @@ App.views.overview = {
       twin: twinHTML([{ label: 'Measure' }, { label: 'Count', right: true }, { label: 'Of', right: true }], [['Box art', fmtN(k.art), fmtN(k.entries)], ['Serial', fmtN(k.ser), fmtN(k.entries)], ['RetroAchievements', fmtN(k.ra), fmtN(k.entries)], ['2+ sources', fmtN(multi), fmtN(k.entries)], ['BitTorrent links', fmtN(dl[1]), fmtN(k.links)]]),
     });
 
-    root.innerHTML = `<div class="grid">${hero}${kp}${tmCard}${mixCard}
+    const shelves = S.anyActive() ? '' : collectionsHTML() + picksHTML();
+    root.innerHTML = `<div class="grid">${hero}${kp}${shelves}${tmCard}${mixCard}
       ${simpleBars('reg', 'Regions', 'An entry can belong to up to three.', { sort: false })}
       ${szCard}${covCard}
       ${simpleBars('flag', 'Release flags', 'Tags read from titles, such as Beta or Unlicensed.', { top: 11 })}

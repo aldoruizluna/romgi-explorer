@@ -1,7 +1,7 @@
 /* ============================================================ charts: thin marks, 2px gaps, hairline grids, a table twin for every chart */
 
 Tip.showAt = function (node, x, y) {
-  this.el.replaceChildren(node); this.el._for = null; this.el.classList.add('on'); this.place(x, y);
+  this.el.replaceChildren(node); this.el._for = null; this.el.classList.add('on'); this.el.setAttribute('aria-hidden', 'false'); this.place(x, y);
 };
 
 /** A chart card. `twin` is the accessible table version of the same numbers; the Table button swaps to it. */
@@ -48,7 +48,8 @@ function stackedHTML(rows, series, { facet, mode = 'abs', fmt = fmtN, tipFor } =
       <span class="bars"><span class="stack" style="width:calc((100% - 72px) * ${mode === 'pct' ? 1 : (tot / max).toFixed(4)})">${r.parts.map((p, k) => {
         if (!p) return '';
         const tk = Tip.tk(() => tipFor(r, k, p, tot));
-        return `<button class="seg-b${k === last ? ' last' : ''}" style="flex:${p} 0 0;--c:${series[k].color}" data-act="facet2" data-f="${facet}" data-v="${r.v}" data-f2="${series[k].facet}" data-v2="${series[k].v}" data-tk="${tk}"><span>${mode === 'pct' ? ((100 * p) / tot).toFixed(0) + '%' : compact(p)}</span></button>`;
+        const vis = mode === 'pct' ? ((100 * p) / tot).toFixed(0) + '%' : compact(p);
+        return `<button class="seg-b${k === last ? ' last' : ''}" style="flex:${p} 0 0;--c:${series[k].color}" data-act="facet2" data-f="${facet}" data-v="${r.v}" data-f2="${series[k].facet}" data-v2="${series[k].v}" data-tk="${tk}" aria-label="${esc(vis)}: ${esc(r.label)}, ${esc(series[k].label)} (${fmtN(p)})"><span>${vis}</span></button>`;
       }).join('')}</span><span class="tot">${mode === 'pct' ? '' : fmt(tot)}</span></span></div>`;
   }).join('')}</div>`;
 }
@@ -72,6 +73,13 @@ function meterHTML(label, a, b, note = '') {
 /** After insertion: remove segment labels that do not fit with padding (never clip text). */
 function fitLabels(root) {
   for (const s of $$('.seg-b > span', root)) if (s.scrollWidth + 10 > s.parentElement.clientWidth) s.remove();
+  for (const b of $$('button.seg-b', root)) {
+    if (b.offsetWidth >= 24) continue;
+    const t = document.createElement('span');
+    t.className = b.className; t.setAttribute('style', b.getAttribute('style')); t.setAttribute('aria-hidden', 'true');
+    for (const k of ['act', 'f', 'v', 'f2', 'v2', 'tk']) if (b.dataset[k] != null) t.dataset[k] = b.dataset[k];
+    b.replaceWith(t);
+  }
 }
 
 /* ------------------------------------------------------------ treemap (squarified, two levels: brand > platform) */
@@ -113,9 +121,13 @@ function treemapHTML(groups, W, H, { selected, fmt = fmtN, tipFor }) {
       const c = T.v, tw = T.w - 2, th = T.h - 2;
       if (tw < 3 || th < 3) continue;
       const tk = Tip.tk(() => tipFor(c, g));
-      const label = tw >= 54 && th >= 38 ? `<span class="c">${esc(c.code)}</span><span class="n">${fmt(c.value)}</span>` : tw >= 30 && th >= 20 ? `<span class="c">${esc(c.code)}</span>` : '';
+      const label = tw >= 54 && th >= 38 ? `<span class="c">${esc(c.code)}</span> <span class="n">${fmt(c.value)}</span>` : tw >= 30 && th >= 20 ? `<span class="c">${esc(c.code)}</span>` : '';
       const sel = selected?.has(c.id);
-      html += `<button class="tm-tile${sel ? ' sel' : ''}${selected?.size && !sel ? ' dim' : ''}" style="left:${(T.x + 1).toFixed(1)}px;top:${(T.y + 1).toFixed(1)}px;width:${tw.toFixed(1)}px;height:${th.toFixed(1)}px" data-act="facet" data-f="plat" data-v="${c.id}" data-tk="${tk}" aria-label="${esc(c.name)} ${fmt(c.value)}">${label}</button>`;
+      const pos = `left:${(T.x + 1).toFixed(1)}px;top:${(T.y + 1).toFixed(1)}px;width:${tw.toFixed(1)}px;height:${th.toFixed(1)}px`;
+      const cls = `tm-tile${sel ? ' sel' : ''}${selected?.size && !sel ? ' dim' : ''}`;
+      if (tw < 24 || th < 24) { html += `<span class="${cls} tiny" style="${pos}" data-act="facet" data-f="plat" data-v="${c.id}" data-tk="${tk}" aria-hidden="true"></span>`; continue; }
+      const seen = tw >= 54 && th >= 38 ? `${c.code} ${fmt(c.value)}` : tw >= 30 && th >= 20 ? c.code : '';
+      html += `<button class="${cls}" style="${pos}" data-act="facet" data-f="plat" data-v="${c.id}" data-tk="${tk}" aria-label="${esc(seen ? `${seen}, ${c.name}` : `${c.name} ${fmt(c.value)}`)}">${label}</button>`;
     }
   }
   return html;

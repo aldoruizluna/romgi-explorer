@@ -29,6 +29,11 @@ def check(name, got, want):
 
 sc = lambda sql: con.execute(sql).fetchone()[0]
 
+# the table is stored in the order the SQL printed under "SQL behind this view" sorts by (SQLite's own comparator ranks the keys)
+rank = dict(con.execute(f"SELECT e.title, DENSE_RANK() OVER (ORDER BY {ds['meta']['sql_title_order']}) FROM entries e"))
+seq = [rank[t] for t in E["title"]]
+check("entries out of ORDER BY order", sum(1 for a, b in zip(seq, seq[1:]) if b < a), 0)
+
 check("entries", E["n"], sc("SELECT COUNT(*) FROM entries"))
 check("links", L["n"], sc("SELECT COUNT(*) FROM links"))
 check("sum(entries.nl)", sum(E["nl"]), sc("SELECT COUNT(*) FROM links"))
