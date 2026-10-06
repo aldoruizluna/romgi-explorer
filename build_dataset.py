@@ -683,7 +683,7 @@ def main():
     ds = build(a.db, local=a.local, version_json=a.version_json, history_json=a.history_json, profiles=not a.no_profiles, keep_art=bool(a.art_out))
     art = ds.pop("_art", None)
     raw = to_json_bytes(ds)
-    gz = gzip.compress(raw, 9)
+    gz = gzip.compress(raw, 9, mtime=0)
     print(f"json {len(raw) / 1e6:.2f} MB -> gzip {len(gz) / 1e6:.2f} MB")
     if a.stats:
         for k, v in ds.items():
@@ -700,7 +700,7 @@ def main():
         print("wrote", a.out)
     if a.art_out:
         Path(a.art_out).parent.mkdir(parents=True, exist_ok=True)
-        Path(a.art_out).write_bytes(gzip.compress(to_json_bytes(art), 9))
+        Path(a.art_out).write_bytes(gzip.compress(to_json_bytes(art), 9, mtime=0))
         print(f"wrote {a.art_out}  ({sum(1 for x in art if x):,} of {len(art):,} entries have a path)")
 
 

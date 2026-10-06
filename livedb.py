@@ -66,8 +66,8 @@ def main() -> None:
     build(a.src, str(raw))
     if a.gzip:
         t0 = time.time()
-        with open(raw, "rb") as f, gzip.open(a.dst, "wb", compresslevel=9) as g:
-            shutil.copyfileobj(f, g, 1 << 20)
+        with open(raw, "rb") as f, open(a.dst, "wb") as out, gzip.GzipFile(filename="", fileobj=out, mode="wb", compresslevel=9, mtime=0) as g:
+            shutil.copyfileobj(f, g, 1 << 20)       # mtime=0: the same database always gives the same bytes, so browsers keep their saved copy
         raw.unlink()
         print(f"compressed {Path(a.dst).stat().st_size / 1e6:7.1f} MB  {time.time() - t0:5.1f} s")
 

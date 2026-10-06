@@ -67,8 +67,8 @@ def main():
         gz = Path(a.dataset).read_bytes()
     elif a.db:
         built = bd.build(a.db, local=False, version_json=a.version_json, keep_art=True)
-        art_gz = gzip.compress(bd.to_json_bytes(built.pop("_art")), 9)
-        gz = gzip.compress(bd.to_json_bytes(built), 9)
+        art_gz = gzip.compress(bd.to_json_bytes(built.pop("_art")), 9, mtime=0)
+        gz = gzip.compress(bd.to_json_bytes(built), 9, mtime=0)
     else:
         sys.exit("give --db or --dataset")
     b64 = base64.b64encode(gz).decode("ascii")
@@ -77,7 +77,7 @@ def main():
     mb = lambda n: f"{n / 1e6:.2f} MB"
     if a.pages:
         ds = json.loads(gzip.decompress(gz))
-        gz = gzip.compress(ndjson(ds), 9)
+        gz = gzip.compress(ndjson(ds), 9, mtime=0)
         meta, name = ds["meta"], "catalogue." + hashlib.sha256(gz).hexdigest()[:8] + ".bin"
         hero = {"entries": ds["entries"]["n"], "links": ds["links"]["n"], "platforms": len(ds["dims"]["platforms"]),
                 "sources": len(ds["dims"]["sources"]), "version": meta["version"]}
