@@ -91,6 +91,9 @@ jobs:
       - name: Check the dataset against SQL
         run: python3 tests/test_dataset.py data/romdb.db dist/dataset.snapshot.json.gz
 
+      - name: Check that links round-trip (every filter value, random slices, odd names)
+        run: node tests/url.test.js dist/dataset.snapshot.json.gz
+
       - name: Check the guards and the explorer's handling of a source it has not seen
         run: |
           python3 tests/make_fixture.py data/romdb.db dist/fixture/romdb.db --extra-source

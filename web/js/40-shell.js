@@ -24,9 +24,11 @@ const App = {
   loadUI() {
     const saved = store.get('ui', {});
     for (const k of Object.keys(DEFAULT_UI)) if (saved[k] !== undefined) this.ui[k] = (DEFAULT_UI[k] && typeof DEFAULT_UI[k] === 'object' && !Array.isArray(DEFAULT_UI[k])) ? { ...DEFAULT_UI[k], ...saved[k] } : saved[k];
-    const h = location.hash.replace('#', '');
-    if (TABS.some(t => t.id === h)) this.ui.view = h;
+    Url.init();
+    const asked = Url.parse(location.hash);
+    if (TABS.some(t => t.id === asked.view)) this.ui.view = asked.view;
     if (!TABS.some(t => t.id === this.ui.view)) this.ui.view = 'overview';
+    Url.boot = Url.enabled && asked.has ? asked : null;
     this.ui.twin = []; this.ui.find = {};
   },
   saveUI: debounce(() => store.set('ui', App.ui), 250),
@@ -40,6 +42,11 @@ const App = {
     if (!D.detailReady) { q.disabled = true; q.placeholder = 'Loading titles…'; }
     $('#ver').innerHTML = `<i class="fd" id="fd" aria-hidden="true"></i>${esc(`${D.meta.version} · schema v${D.meta.schema_version ?? '?'}`)}`;
     S.state.grain = store.get('grain', 'entries') === 'links' ? 'links' : 'entries';
+    if (Url.boot) {                                 // a link asked for a slice: it is in place before anything is counted or drawn
+      const bad = Url.apply(Url.boot); Url.boot = null;
+      q.value = (Url.pending && Url.pending.q) || '';
+      if (bad) setTimeout(() => toast(`${bad === 1 ? 'One part' : bad + ' parts'} of that link ${bad === 1 ? 'is' : 'are'} not in this catalogue.`), 600);
+    }
     S.changed();
     S.onChange = () => this.schedule();            // after the first changed(): that one is drawn below, not scheduled a second time
     this.buildRail(); this.renderTabs(); this.bind();
@@ -57,6 +64,7 @@ const App = {
     const v = this.views[this.ui.view];
     if (v.patchDetail) v.patchDetail(); else this.renderView();         // the overview only needs its size tile; the other views are redrawn
     loadArt();
+    Url.afterDetail();                                                  // the query and the card a link asked for can be applied now
   },
   /** Progress of the title download: the search placeholder and, in Browse, the bar. */
   detailProgress() {
@@ -103,6 +111,7 @@ const App = {
   refresh() {
     this.updateRail(); this.renderScope(); this.renderTabs(); this.renderView();
     if (this.sel != null) Drawer.refresh();
+    Url.syncSoon();
   },
 
   /* -------------------------------------------------------- facet rail */
@@ -189,6 +198,7 @@ const App = {
       <div class="count"><b class="num">${fmtN(g === 'entries' ? k.entries : k.links)}</b><span class="of num">of ${fmtN(g === 'entries' ? b.entries : b.links)}</span>
         <span class="muted">·</span><span class="of num">${fmtN(g === 'entries' ? k.links : k.entries)} ${g === 'entries' ? 'links' : 'entries'}</span></div>
       <span style="flex:1"></span>
+      ${Url.enabled ? `<button class="btn sm ghost" data-act="copylink" data-tip="Copy a link to this slice">${icon('link', 13)}<span>Link</span></button>` : ''}
       ${S.anyActive() ? `<button class="btn sm ghost" data-act="reset" data-tip="Remove every filter">${icon('reset', 13)}<span>Clear</span></button>` : ''}
       <button class="btn sm ghost" data-act="sqlpeek" aria-pressed="${this.ui.sqlpeek}" data-tip="Show the SQL behind this slice">${icon('code', 14)}<span>SQL</span></button>
       <div class="chips">${chips}</div>${peek}`;
@@ -206,7 +216,8 @@ const App = {
   show(view) {
     if (!this.views[view]) return;
     this.ui.view = view; this.saveUI();
-    try { history.replaceState(null, '', '#' + view); } catch { /* sandboxed frames may refuse */ }
+    if (Url.enabled) Url.sync(true);
+    else { try { history.replaceState(null, '', '#' + view); } catch { /* sandboxed frames may refuse */ } }
     this.renderTabs(); this.renderView();
     $('#stage').scrollTo({ top: 0 });
     $('#app').classList.remove('rail-open'); $('#scrim').classList.remove('on');
@@ -248,7 +259,8 @@ const App = {
         else { S.fs(d.k).inc = new Set(); S.changed(); }
         break;
       }
-      case 'reset': $('#q').value = ''; S.clearAll(); break;
+      case 'reset': $('#q').value = ''; if (Url.pending) Url.pending.q = ''; S.clearAll(); break;
+      case 'copylink': Url.sync(false); copyText(location.href, 'Link copied'); break;
       case 'open': Drawer.open(+d.i); break;
       case 'close': Drawer.close(); break;
       case 'copy': copyText(d.text); break;
@@ -324,7 +336,12 @@ const App = {
     window.addEventListener('resize', debounce(() => this.renderView(), 180));
     new MutationObserver(() => { Color.reset(); this.paintTheme(); this.refresh(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { Color.reset(); this.paintTheme(); this.refresh(); });
-    window.addEventListener('hashchange', () => { const h = location.hash.replace('#', ''); if (TABS.some(t => t.id === h) && h !== this.ui.view) this.show(h); });
+    const follow = () => {
+      if (Url.enabled) return Url.fromLocation();
+      const h = Url.parse(location.hash).view;
+      if (TABS.some(t => t.id === h) && h !== this.ui.view) this.show(h);
+    };
+    window.addEventListener('hashchange', follow); window.addEventListener('popstate', follow);
   },
 };
 

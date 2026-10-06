@@ -97,7 +97,7 @@ or sharing, so those items rest on patterns in comparable tools, not on demand h
 
 | ID | What | Why | Size |
 |---|---|---|---|
-| C1 | **Permalinks and URL state.** Hash carries view, query, filters, sort and the open card by slug; the back gesture closes the card | Today nothing can be linked. Foundation for C6, D2, E0 and sharing | M |
+| C1 | ✅ *Done 2026-10-06.* **Permalinks and URL state.** Hash carries view, query, filters, sort and the open card by slug; the back gesture closes the card | Today nothing can be linked. Foundation for C6, D2, E0 and sharing | M |
 | C2 | **Release families.** A build-time `family` per platform and base title (text in `(...)` and `[...]` removed): re-measured on the 2026-10-04 catalogue: 165,381 families for 241,137 entries, 46.5% of entries in a multi-member family, 26,508 families across two or more regions. Browse by family, an "N editions" chip, a group toggle; cap families so a demo pack of 1,519 entries (Doko Demo Honya-san on 3DS) or a game with 228 entries (LittleBigPlanet 2) does not swallow the list | "Games, not files"; foundation for C3, C4, D3 | M |
 | C3 | **Editions grid and compare.** Region × (Rev, Beta, Proto, Demo) with size and source count; tick two to see the difference | The card's "Same title" shows identical titles only | M |
 | C4 | **One-sheet chooser.** Pick a region order and exclusions (Beta, Proto, Demo, Unlicensed); get one edition per family, the total size, and whether it fits a 128, 256 or 512 GB card; export the list as plain titles | The classic "one game, one ROM" need, and the question every handheld owner has | M |

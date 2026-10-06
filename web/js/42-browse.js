@@ -191,19 +191,24 @@ Object.assign(App.handlers, {
 /* ============================================================ drawer: one entry, like a catalogue card */
 const Drawer = {
   cache: new Map(),
-  open(i) {
+  open(i, opts = {}) {
     if (!App.D.detailReady) return toast('The titles are still loading.');
+    const wasOpen = App.sel != null;
     App.sel = i;
     const el = $('#drawer'); el.classList.add('open'); el.setAttribute('aria-hidden', 'false');
     if (innerWidth <= 1000) $('#scrim').classList.add('on');
     this.render();
     vtPaint();
+    if (!opts.quiet && Url.enabled) { Url.sync(!wasOpen); if (!wasOpen) Url.pushedCard = true; }       // opening adds a history entry; stepping rewrites it
   },
-  close() {
+  close(opts = {}) {
     App.sel = null;
     const el = $('#drawer'); el.classList.remove('open'); el.setAttribute('aria-hidden', 'true');
     if (!$('#app').classList.contains('rail-open')) $('#scrim').classList.remove('on');
     vtPaint();
+    if (opts.quiet || !Url.enabled) return;
+    if (Url.pushedCard) { Url.pushedCard = false; try { history.back(); return; } catch { /* fall through */ } }     // undo the entry opening the card made
+    Url.sync(false);
   },
   refresh() { /* the card does not depend on the slice */ },
   step(dir) {
@@ -242,6 +247,7 @@ const Drawer = {
     $('#drawer').innerHTML = `<div class="dr-top">
         <span class="cp">${esc(p.code)}</span><span class="mono muted" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(slug)}</span>
         <button class="btn sm ghost icon" data-act="copy" data-text="${esc(slug)}" aria-label="Copy slug" data-tip="Copy slug">${icon('copy', 14)}</button>
+        ${Url.enabled ? `<button class="btn sm ghost icon" data-act="copylink" aria-label="Copy a link to this entry" data-tip="Copy link">${icon('link', 14)}</button>` : ''}
         <span class="sp"></span>
         <button class="btn sm ghost icon" data-act="dstep" data-d="-1" aria-label="Previous entry" data-tip="Previous (K)">${icon('chev-u', 14)}</button>
         <button class="btn sm ghost icon" data-act="dstep" data-d="1" aria-label="Next entry" data-tip="Next (J)">${icon('chev-d', 14)}</button>

@@ -75,6 +75,21 @@ const server = http.createServer((req, res) => {
     const found = await page.evaluate(() => ({ n: App.S.kpis().entries, rows: document.querySelectorAll('.vt-row').length, first: document.querySelector('.vt-row')?.textContent }));
     assert.ok(found.n > 0 && found.rows > 0 && /mario/i.test(found.first), 'search found nothing: ' + JSON.stringify(found));
     ok(`searching "mario" narrows ${all.toLocaleString()} entries to ${found.n.toLocaleString()} and the table shows them`);
+    // ---- the address says what the page shows, and opening it elsewhere shows the same
+    await page.click('.fg[data-fid="plat"] button.fr >> nth=1');
+    await page.waitForFunction(() => /f\.plat=/.test(location.hash) && /q=mario/.test(location.hash), null, { timeout: 5000 });
+    const shown = await page.evaluate(() => ({ hash: location.hash, n: App.S.kpis().entries }));
+    const twin = await ctx.newPage();
+    twin.on('pageerror', e => problems.push('script error (opened link): ' + e.message));
+    await twin.route('**/*', route => (new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : (hosts.set(new URL(route.request().url()).hostname, 1), route.abort())));
+    await twin.goto(base + shown.hash, { waitUntil: 'domcontentloaded' });
+    await twin.waitForFunction(() => App.D && App.D.detailReady && document.querySelector('#q').value === 'mario', null, { timeout: 90000 });
+    await twin.waitForFunction(n => App.S.kpis().entries === n, shown.n, { timeout: 15000 });
+    assert.strictEqual(await twin.evaluate(() => App.ui.view), 'browse');
+    await twin.close();
+    ok(`the address (${shown.hash.length} characters) reproduces the slice in another tab: ${shown.n.toLocaleString()} entries, same query, same view`);
+    await page.click('#rail-reset');
+    await page.waitForFunction(() => !/f\.plat=|q=/.test(location.hash), null, { timeout: 5000 });
     await page.fill('#q', '');
     await page.waitForFunction(n => App.S.kpis().entries === n, all, { timeout: 15000 });
     const before = await page.evaluate(() => App.S.kpis().entries);
@@ -89,8 +104,33 @@ const server = http.createServer((req, res) => {
     await page.waitForSelector('.drawer.open', { timeout: 10000 });
     const card = await page.evaluate(() => document.querySelector('.drawer.open .dr-title')?.textContent);
     assert.ok(card && card.trim().length > 0, 'the card has no title');
-    await page.keyboard.press('Escape');
     ok(`a catalogue card opens ("${card.trim().slice(0, 40)}")`);
+    // ---- the card is in the address, the back button closes it, forward brings it back, and a link opens it
+    const cardHash = await page.evaluate(() => location.hash);
+    assert.ok(/[?&]c=/.test(cardHash), 'the open card is not in the address: ' + cardHash);
+    await page.goBack();
+    await page.waitForFunction(() => !document.querySelector('.drawer.open') && !/[?&]c=/.test(location.hash), null, { timeout: 5000 });
+    await page.goForward();
+    await page.waitForSelector('.drawer.open', { timeout: 10000 });
+    const link2 = await ctx.newPage();
+    link2.on('pageerror', e => problems.push('script error (card link): ' + e.message));
+    await link2.route('**/*', route => (new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : (hosts.set(new URL(route.request().url()).hostname, 1), route.abort())));
+    await link2.goto(base + cardHash, { waitUntil: 'domcontentloaded' });
+    await link2.waitForSelector('.drawer.open .dr-title', { timeout: 90000 });
+    assert.strictEqual((await link2.evaluate(() => document.querySelector('.drawer.open .dr-title').textContent)).trim(), card.trim(), 'the link opened another entry');
+    await link2.close();
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.drawer.open') && !/[?&]c=/.test(location.hash), null, { timeout: 5000 });
+    ok('the open card is in the address; back closes it, forward reopens it, and the link opens the same entry in another tab');
+    // a link naming something this catalogue has not got still opens the page
+    const odd = await ctx.newPage();
+    odd.on('pageerror', e => problems.push('script error (odd link): ' + e.message));
+    await odd.route('**/*', route => (new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort()));
+    await odd.goto(base + '#browse?f.plat=no-such-platform&c=no-such-entry', { waitUntil: 'domcontentloaded' });
+    await odd.waitForFunction(() => App.D && App.D.detailReady, null, { timeout: 90000 });
+    assert.ok(!(await odd.evaluate(() => 'plat' in App.S.state.f)), 'an unknown platform left a filter behind');
+    await odd.close();
+    ok('a link that names a platform and an entry this catalogue does not have still opens the page');
 
     // ---- the other views draw
     for (const [view, sel] of [['overview', '#start-h'], ['dice', '.heat td'], ['sources', '.src-card'], ['schema', '.er-box'], ['quality', '.q']]) {

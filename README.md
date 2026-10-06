@@ -37,6 +37,10 @@ It listens on `127.0.0.1` only and opens the database read-only.
 - **Browse** virtual table over 241k entries or 400k links, a box-art gallery (most achievements first, or A to Z, most sources, largest),
   and a catalogue-card drawer for every entry.
 - **Sources** health, which combinations of sources offer each entry, torrent packs, and the catalogue size over the weekly snapshots.
+- **Links.** The address bar says what the page shows: `#browse?q=mario&f.plat=snes,gba&x.reg=jp&s=size&d=-1&c=<entry>` is a slice, a
+  sort and an open card. Filter values are ids and names, so a link keeps its meaning when the catalogue is rebuilt (a name that is gone
+  is skipped, and the page says so). Changing view or opening a card adds a history entry, so back closes a card. A "Link" button copies
+  the address.
 - **Schema** ER diagram, DDL, a profile of every column, and where the bytes go.
 - **Quality** 16 checks, each backed by a query. Findings in the 2026-10-04 snapshot include 6,638 titles with scrambled
   characters, 4,673 Internet Archive sizes no real copy could have (a Mega Drive game of 20 GiB, a Saturn disc of 28 GiB), two weeks where
@@ -127,6 +131,7 @@ python3 tests/test_drift.py dist/fixture/romdb.db
 node tests/sources.test.js dist/fixture/romdb.db dist/fixture/dataset.json.gz
 # the built site in a real browser (npm install --no-save playwright-core; CHROME_PATH or /usr/bin/google-chrome):
 node tests/smoke.test.js site
+node tests/url.test.js dist/dataset.snapshot.json.gz
 ```
 
 The first checks every flag, size class, region, source, pack and format count against SQL, and that the table is stored in the order
@@ -142,6 +147,9 @@ writes fail, CSV quoting, and every example the console offers.
 `test_drift.py` breaks copies of a small catalogue (a renamed column, a dropped table, a fifth region, a link from an unknown source,
 schema version 5) and checks each is refused with the reason, while a new source, table or column is only mentioned, then runs the
 completeness rule over romgi's real weekly history: it must call exactly the six weeks that were about 40% short unfinished.
+`url.test.js` checks that every filter value has its own text form that reads back as itself, that 300 random slices (filters,
+exclusions, modes, grain, awkward queries, sorting, pivots) come back identical after being written to an address and read again, that
+names a catalogue no longer has are skipped and counted, and that bad values are ignored.
 `sources.test.js` checks the explorer on a catalogue with a source it has never seen: colour slots, source counts, the "Offered by"
 filter and its printed SQL against the database. `smoke.test.js` opens the built site in a real browser and uses it: the overview, a
 search, a filter, a card, every view, the SQL console on the downloaded copy, a phone-width page, and that only expected hosts were asked for.

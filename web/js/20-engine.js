@@ -68,6 +68,22 @@ function makeFacets(D) {
     } });
   F.push({ id: 'sz', label: 'Size class', group: 'files', level: 'l', kind: 'single', n: 7, col: L.sb, layout: 'sizes', name: v => dims.sizes[v].label,
     hint: v => dims.sizes[v].hint, pred: v => dims.sizes[v].sql });
+  // Text for each filter value that survives a new catalogue (ids and names, not positions), for links: tok(value) and untok(text) -> value or -1.
+  const find = (list, ok) => list.findIndex(ok);
+  const T = {
+    brand: [v => dims.brands[v], t => dims.brands.indexOf(t)],
+    plat: [v => dims.platforms[v].id, t => find(dims.platforms, p => p.id === t)],
+    reg: [v => (v < 4 ? dims.regions[v].id : 'none'), t => (t === 'none' ? 4 : find(dims.regions, r => r.id === t))],
+    flag: [v => (v < dims.flags.length ? dims.flags[v].id : 'none'), t => (t === 'none' ? dims.flags.length : find(dims.flags, x => x.id === t))],
+    ini: [initialName, t => (t === '#' ? 0 : t === '0-9' ? 1 : /^[A-Z]$/.test(t) ? t.charCodeAt(0) - 63 : -1)],
+    avail: [m => D.comboSources(m).map(s => dims.sources[s].id).join('+'), t => { let m = 0; for (const id of t.split('+')) { const s = find(dims.sources, x => x.id === id); if (s < 0) return -1; m |= 1 << s; } return m; }],
+    src: [v => dims.sources[v].id, t => find(dims.sources, s => s.id === t)],
+    type: [v => dims.types[v], t => dims.types.indexOf(t)],
+    fmt: [v => dims.formats[v] || '(blank)', t => (t === '(blank)' ? dims.formats.indexOf('') : dims.formats.indexOf(t))],
+    coll: [v => (v < dims.collections.length ? dims.collections[v] : 'none'), t => (t === 'none' ? dims.collections.length : dims.collections.indexOf(t))],
+    pack: [v => (v < dims.packs.length ? dims.packs[v].label : 'none'), t => (t === 'none' ? dims.packs.length : find(dims.packs, p => p.label === t))],
+  };
+  for (const f of F) { const t = T[f.id]; f.tok = t ? t[0] : (v => String(v)); f.untok = t ? t[1] : (s => (/^\d{1,3}$/.test(s) ? +s : -1)); }
   return F;
 }
 
