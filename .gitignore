@@ -10,3 +10,5 @@ __pycache__/
 node_modules/
 site/
 .playwright-mcp/
+# reference data fetched at build time (libretro-database, CC BY-SA 4.0): never committed
+data/reference/
