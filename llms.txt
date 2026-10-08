@@ -1,0 +1,24 @@
+# romgi-explorer
+
+> A browser UI for the database behind caprado/romgi (db/romdb.db.gz): every entry, every link and the metadata around them, sliceable and pivotable, with box art and a SQL console, in English and Spanish. It runs locally against your own copy of the database (file names and URLs included) and as a static GitHub Pages site built from a link-free copy (download locators emptied) that rebuilds itself when romgi publishes. Python standard library only; plain JavaScript, no bundler. The catalogue belongs to romgi and is never committed.
+
+Rules for any assistant working in this repository: read AGENTS.md first; do not run ./run.sh or fetch romgi's catalogue without the owner's word; never add a feature that fetches or links to files, or that puts download locators on the hosted site; every message needs English and Spanish; do not push or publish without the owner's word. The repository is public, so documents never contain personal details or private project names.
+
+Source: https://github.com/aldoruizluna/romgi-explorer (MIT). Live site: https://aldoruizluna.github.io/romgi-explorer/. The complete documentation in a single file is llms-full.txt.
+
+## Start here
+
+- [README](https://raw.githubusercontent.com/aldoruizluna/romgi-explorer/main/README.md): what it is, local versus live site, how to run it, what is in it, the live site's build, files, languages, licence, notes
+- [AGENTS](https://raw.githubusercontent.com/aldoruizluna/romgi-explorer/main/AGENTS.md): the contract for AI coding assistants: map, hard rules, commands
+- [Documentation map](https://raw.githubusercontent.com/aldoruizluna/romgi-explorer/main/docs/INDEX.md): every document, who should read it, how they connect
+
+## How it works
+
+- [Architecture](https://raw.githubusercontent.com/aldoruizluna/romgi-explorer/main/docs/ARCHITECTURE.md): the pipeline from romdb.db to the dataset to the page, the local server's routes and security, the browser files, the hosted site and its guards
+- [Developing](https://raw.githubusercontent.com/aldoruizluna/romgi-explorer/main/docs/DEVELOPING.md): set up, the edit loop, conventions, recipes for a view, collection, quality check, language or document
+- [Testing](https://raw.githubusercontent.com/aldoruizluna/romgi-explorer/main/docs/TESTING.md): every test with its command, prerequisites and what it checks
+- [Glossary](https://raw.githubusercontent.com/aldoruizluna/romgi-explorer/main/docs/GLOSSARY.md): one definition per term (entry, grain, link-free copy, drift, slice)
+
+## Plan
+
+- [Roadmap](https://raw.githubusercontent.com/aldoruizluna/romgi-explorer/main/docs/ROADMAP.md): what comes next, why, how big, and how we will know it worked

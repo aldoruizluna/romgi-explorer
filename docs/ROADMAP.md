@@ -1,5 +1,11 @@
 # Roadmap
 
+> **TL;DR.** Where romgi-explorer goes next: keep the build alive when romgi changes, be fast on a phone, help people find and decide, add a local-only personal shelf, enrich the catalogue
+> from reference data, and be honest about what "more sources" can and cannot mean. Each item says why, how big it is (S, M or L) and how we will know it worked.
+
+Related: [INDEX](INDEX.md) · [ARCHITECTURE](ARCHITECTURE.md) · [DEVELOPING](DEVELOPING.md) · [TESTING](TESTING.md) · [README](../README.md)
+
+
 Where romgi-explorer goes next, written 2026-10-06 from measurements of the live site, a read of the original romgi's code and issues,
 and two research passes (UI patterns in comparable tools, reference datasets). Claims from those passes that were not re-checked here are
 marked *unverified*. Sizes are scope, not time: **S** is one area with tests, **M** touches the builder, the page and the tests (a new
@@ -240,3 +246,7 @@ Answered by the owner on 2026-10-06:
 
 Still on their defaults unless you say otherwise: keep the name "Romgi Catalog Explorer" with a clear "not affiliated" line (H2); no
 analytics (H4); stay on GitHub Pages; reference data yes (F), a local-only bring-your-own source later (G3), no ROM-download sites (G4), no homebrew (G2).
+
+---
+
+Related: [INDEX](INDEX.md) · [ARCHITECTURE](ARCHITECTURE.md) · [DEVELOPING](DEVELOPING.md) · [TESTING](TESTING.md) · [README](../README.md)
