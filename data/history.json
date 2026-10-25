@@ -570,5 +570,18 @@
   "size": 55366881,
   "uncompressed": 345055232,
   "schema": 4
+ },
+ {
+  "commit": "d69ccac6",
+  "date": "2026-10-25T04:19:11Z",
+  "version": "20261025",
+  "entries": 240753,
+  "links": 399392,
+  "platforms": 50,
+  "sources": 4,
+  "ra": 9813,
+  "size": 55293935,
+  "uncompressed": 344555520,
+  "schema": 4
  }
 ]
