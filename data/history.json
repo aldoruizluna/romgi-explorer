@@ -544,5 +544,44 @@
   "size": 55398306,
   "uncompressed": 345153536,
   "schema": 4
+ },
+ {
+  "commit": "b0860c2d",
+  "date": "2026-10-11T05:21:01Z",
+  "version": "20261011",
+  "entries": 241114,
+  "links": 400110,
+  "platforms": 50,
+  "sources": 4,
+  "ra": 9782,
+  "size": 55359582,
+  "uncompressed": 345096192,
+  "schema": 4
+ },
+ {
+  "commit": "1d37dfda",
+  "date": "2026-10-18T04:10:51Z",
+  "version": "20261018",
+  "entries": 241118,
+  "links": 400124,
+  "platforms": 50,
+  "sources": 4,
+  "ra": 9795,
+  "size": 55366881,
+  "uncompressed": 345055232,
+  "schema": 4
+ },
+ {
+  "commit": "d69ccac6",
+  "date": "2026-10-25T04:19:11Z",
+  "version": "20261025",
+  "entries": 240753,
+  "links": 399392,
+  "platforms": 50,
+  "sources": 4,
+  "ra": 9813,
+  "size": 55293935,
+  "uncompressed": 344555520,
+  "schema": 4
  }
 ]
