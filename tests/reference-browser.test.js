@@ -44,14 +44,18 @@ const server = http.createServer((req, res) => {
         await page.evaluate(index => Drawer.open(index), index);
         const facts = page.locator('#drawer .reference');
         await facts.waitFor({ state: 'visible' });
-        assert((await facts.innerText()).includes('Developer'));
+        assert((await facts.locator('dt').allTextContents()).includes('Developer'));
         assert((await facts.locator('a').allTextContents()).includes('CC BY-SA 4.0'));
         const source = await facts.locator('a').first().getAttribute('href');
         assert(/^https:\/\/github.com\/libretro\/libretro-database\/tree\/[a-f0-9]{40}$/.test(source));
         await page.screenshot({ path: path.join(output, 'reference-en.png') });
+        // The drawer covers the header switch; close it as a visitor does.
+        await page.keyboard.press('Escape');
+        await page.waitForFunction(() => App.sel == null);
         await Promise.all([page.waitForNavigation({ waitUntil: 'domcontentloaded' }), page.click('#lang-btn')]);
-        await page.waitForFunction(() => App.D?.detailReady && App.referenceState === 'ready' && Lang.code === 'es' && App.sel != null, null, { timeout: 90000 });
-        assert((await facts.innerText()).includes('Desarrollador'));
+        await page.waitForFunction(() => App.D?.detailReady && App.referenceState === 'ready' && Lang.code === 'es', null, { timeout: 90000 });
+        await page.evaluate(index => Drawer.open(index), index);
+        assert((await facts.locator('dt').allTextContents()).includes('Desarrollador'));
         assert((await facts.innerText()).includes('Datos de referencia'));
         await page.screenshot({ path: path.join(output, 'reference-es.png') });
         const unknown = await page.evaluate(() => App.D.reference.cols.year.findIndex((_value, i) => Object.values(App.D.reference.cols).every(column => column[i] === 0)));
