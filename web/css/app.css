@@ -469,7 +469,7 @@ select:focus, .input:focus { outline: none; border-color: var(--accent); box-sha
 .drawer.open { transform: none; visibility: visible; }
 .dr-top { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
 .dr-top .sp { margin-left: auto; }
-.dr-body { flex: 1; overflow: auto; padding: 18px 18px 40px; display: grid; align-content: start; gap: 18px; }
+.dr-body { flex: 1; overflow: auto; padding: 18px 18px 40px; display: grid; grid-auto-rows: max-content; align-content: start; gap: 18px; }
 .dr-title { font: 600 21px/1.2 var(--font-ui); letter-spacing: -0.01em; margin: 0; overflow-wrap: anywhere; }
 .dr-hero { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 16px; align-items: start; }
 .dr-art { aspect-ratio: 1 / 1; border-radius: var(--r); background: var(--panel-3); border: 1px solid var(--line); display: grid; place-items: center; overflow: hidden; }

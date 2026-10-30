@@ -305,6 +305,7 @@ const Drawer = {
           ${E.ra[i] ? `<div><dt>RetroAchievements</dt><dd><a href="https://retroachievements.org/game/${E.ra[i]}" target="_blank" rel="noopener">${esc(__('Game {id}', { id: String(E.ra[i]) }))} ${icon('ext', 12)}</a><br><span class="muted">${esc(__n(E.ran[i], '{n} achievement|{n} achievements'))}</span></dd></div>` : ''}
           <div><dt>${__('Box art')}</dt><dd>${[__('None matched'), 'GameTDB', 'libretro'][E.artk[i]]}</dd></div>
         </dl>
+        ${referenceFacts(i)}
         ${pics.length ? `<section class="pics" hidden><h3 class="sec-h">${icon('image', 14)}${__('Pictures')}</h3><div class="pic-row">${pics.map(p => `<figure hidden data-pic="${esc(p.url)}"><a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer"><img alt="${esc(__('{label}: {title}', { label: __(p.label), title: D.titleShown(i) }))}" referrerpolicy="no-referrer" decoding="async"></a><figcaption>${esc(__(p.label))}</figcaption></figure>`).join('')}</div></section>` : ''}
         <section><h3 class="sec-h">${icon('link', 14)}${__('Links')}<span class="eyebrow">${esc(__('{n} in the catalogue', { n: links.length }))}</span></h3><div class="lk">${lk}</div>
           ${D.caps.sql ? '' : `<div class="notice info" style="margin-top:10px">${icon('info', 16)}<div>${__('File names, URLs and raw rows appear when the explorer runs locally against the database.')}</div></div>`}</section>

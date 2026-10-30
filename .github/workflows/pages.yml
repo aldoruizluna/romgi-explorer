@@ -8,6 +8,7 @@ name: Publish the explorer
 on:
   push:
     branches: [main]
+  pull_request:
   schedule:
     - cron: "17 */3 * * *"
   workflow_dispatch:
@@ -21,8 +22,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'publish' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -32,6 +33,12 @@ jobs:
       rebuild: ${{ steps.compare.outputs.rebuild }}
     steps:
       - uses: actions/checkout@v7
+
+      - name: Check reference parsing, exact catalogue binding and optional-file failure
+        run: |
+          python3 tests/test_reference.py
+          python3 tests/test_reference_overlay.py
+          node tests/reference.test.js
       - id: compare
         run: python3 drift.py rebuild --event "${{ github.event_name }}" --site "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/version.json"
 
@@ -88,6 +95,13 @@ jobs:
       - name: Build the dataset
         run: python3 build_dataset.py --db data/romdb.db --version-json data/version.json --out dist/dataset.snapshot.json.gz --art-out dist/art.snapshot.json.gz
 
+      - name: Fetch the pinned reference metadata and bind it to this catalogue
+        run: |
+          python3 reference.py fetch --art dist/art.snapshot.json.gz --out data/reference
+          python3 reference.py build --dataset dist/dataset.snapshot.json.gz --art dist/art.snapshot.json.gz --ref data/reference --out dist/meta.snapshot.json.gz
+          REFERENCE_COMMIT=$(python3 -c 'import reference; print(reference.LIBRETRO_COMMIT)')
+          python3 tests/test_reference.py "data/reference/$REFERENCE_COMMIT" dist/dataset.snapshot.json.gz dist/art.snapshot.json.gz
+
       - name: Check the dataset against SQL
         run: python3 tests/test_dataset.py data/romdb.db dist/dataset.snapshot.json.gz
 
@@ -116,7 +130,7 @@ jobs:
         run: python3 tests/test_livedb.py data/romdb.db dist/livedb.sqlite.gz
 
       - name: Build the site
-        run: python3 bundle.py --dataset dist/dataset.snapshot.json.gz --art dist/art.snapshot.json.gz --live-db dist/livedb.sqlite.gz --pick data/pick.json --pages --out-dir site --site-url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+        run: python3 bundle.py --dataset dist/dataset.snapshot.json.gz --art dist/art.snapshot.json.gz --reference dist/meta.snapshot.json.gz --live-db dist/livedb.sqlite.gz --pick data/pick.json --pages --out-dir site --site-url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
 
       - name: Check the SQL console's engine
         run: node tests/sqlconsole.test.js dist/livedb.sqlite.gz site/vendor/sqljs dist/dataset.snapshot.json.gz
@@ -131,6 +145,7 @@ jobs:
         run: |
           npm install --no-save --no-audit --no-fund playwright-core@1.49.1
           node tests/smoke.test.js site
+          node tests/reference-browser.test.js site
         env:
           CHROME_PATH: /usr/bin/google-chrome
 
@@ -149,12 +164,21 @@ jobs:
       - name: Write the run summary
         run: python3 drift.py summary site data/pick.json
 
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: reference-browser-proof
+          path: dist/reference-browser
+          if-no-files-found: ignore
+          retention-days: 7
+
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
   deploy:
     needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       pages: write
