@@ -42,6 +42,10 @@ const server = http.createServer((req, res) => {
         const index = await page.evaluate(() => App.D.reference.cols.year.findIndex((value, i) => value && App.D.reference.cols.dev[i]));
         assert(index >= 0, 'the catalogue has no known date/developer to inspect');
         await page.evaluate(index => Drawer.open(index), index);
+        await page.locator('#drawer').evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished)); });
+        const baseFacts = page.locator('#drawer .dr-body > dl.facts');
+        assert((await baseFacts.boundingBox()).height > 120, 'the added section collapsed the original catalogue facts');
+        assert((await baseFacts.locator('dt').allTextContents()).includes('Platform'));
         const facts = page.locator('#drawer .reference');
         await facts.waitFor({ state: 'visible' });
         assert((await facts.locator('dt').allTextContents()).includes('Developer'));
@@ -55,6 +59,10 @@ const server = http.createServer((req, res) => {
         await Promise.all([page.waitForNavigation({ waitUntil: 'domcontentloaded' }), page.click('#lang-btn')]);
         await page.waitForFunction(() => App.D?.detailReady && App.referenceState === 'ready' && Lang.code === 'es', null, { timeout: 90000 });
         await page.evaluate(index => Drawer.open(index), index);
+        await page.locator('#drawer').evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished)); });
+        const drawerBox = await page.locator('#drawer').boundingBox();
+        assert(drawerBox.x >= 0 && drawerBox.x + drawerBox.width <= 1281, 'the translated drawer is outside the viewport');
+        assert((await baseFacts.boundingBox()).height > 120, 'the translated catalogue facts collapsed');
         assert((await facts.locator('dt').allTextContents()).includes('Desarrollador'));
         assert((await facts.innerText()).includes('Datos de referencia'));
         await page.screenshot({ path: path.join(output, 'reference-es.png') });
