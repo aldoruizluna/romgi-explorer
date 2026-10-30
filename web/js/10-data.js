@@ -21,8 +21,8 @@ async function loadDataset(onPhase) {
 
 /** The hosted site ships the catalogue as gzip files, one JSON document per line ([section, key|null, value], or
  *  [section, key, values, offset] for a long column). They unpack as they arrive and are parsed line by line in short tasks. */
-async function readNdjson(url, total, onProgress) {
-  const r = await fetch(url);
+async function readNdjson(url, total, onProgress, options) {
+  const r = await fetch(url, options);
   if (!r.ok) throw new Error(r.status === 404 ? __('That file is gone: the site was probably just updated. Reload the page.') : __('{url} answered {status}', { url, status: r.status }));
   total = total || +r.headers.get('content-length') || 0;     // the file's own size; a CDN may re-compress in transit
   let got = 0;

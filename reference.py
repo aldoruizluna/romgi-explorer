@@ -5,14 +5,14 @@ reference.py - say more about the games already in the catalogue, from a dataset
 Genre, release year and month, developer, publisher and the number of players come from libretro-database's metadat folder
 (https://github.com/libretro/libretro-database, CC BY-SA 4.0, pinned to one commit below). Each of its files lists a system's games by
 the No-Intro name, which is also the name in the box-art path the catalogue already stores for most entries from libretro, so an entry
-joins by that name and by nothing less exact: an entry without such a path gets no reference data rather than a guess.
+joins by that name or an exact serial on a known platform. Unknown entries stay unknown; no title guessing is used.
 
   python3 reference.py fetch --art dist/art.snapshot.json.gz --out data/reference
   python3 reference.py build --dataset dist/dataset.snapshot.json.gz --art dist/art.snapshot.json.gz --ref data/reference --out dist/meta.snapshot.json.gz
 
 The result is its own file, loaded after the catalogue, so it can be dropped without touching anything else. It carries its source and
 the commit it was made from. The files are fetched from raw.githubusercontent.com; a file a system does not have (404) is remembered as
-empty, and a run that fails to fetch more than a few files stops instead of building from half the data.
+empty, and any failed fetch stops the run instead of publishing partial reference data.
 """
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ import hashlib
 import json
 import re
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -47,9 +48,13 @@ def sanitize(name: str) -> str:
     return re.sub(r"[&*/:`<>?\\|]", "_", name)
 
 
+def safe_system(name: str) -> bool:
+    return bool(name) and name not in {".", ".."} and not any(c in "/\\" or ord(c) < 32 or ord(c) == 127 for c in name)
+
+
 def systems_of(art: list[str]) -> list[str]:
     """The libretro systems whose box art the catalogue links to, as libretro names them (and as its metadat files are named)."""
-    return sorted({unq(p).split("/")[0] for p in art if p and BOXART in unq(p)})
+    return sorted({name for p in art if p and BOXART in unq(p) if safe_system(name := unq(p).split(BOXART, 1)[0])})
 
 
 def entry_names(art: list[str]) -> list[tuple[str, str] | None]:
@@ -61,7 +66,7 @@ def entry_names(art: list[str]) -> list[tuple[str, str] | None]:
             out.append(None)
             continue
         system, rest = u.split(BOXART, 1)
-        out.append((system, re.sub(r"\.png$", "", rest)))
+        out.append((system, re.sub(r"\.png$", "", rest)) if safe_system(system) else None)
     return out
 
 
@@ -83,7 +88,7 @@ def get(url: str, tries: int = 4) -> bytes | None:
     raise err
 
 
-def fetch(systems: list[str], out: Path, workers: int = 8, log=print) -> dict:
+def fetch(systems: list[str], out: Path, workers: int = 2, log=print) -> dict:
     """Download every field's file for every system into out/<field>/<system>.dat (an empty file when the system has none). Returns counts."""
     jobs = [(f, s) for f in FIELDS for s in systems if not (out / f / f"{s}.dat").exists()]
     stats = collections.Counter(have=len(FIELDS) * len(systems) - len(jobs))
@@ -94,7 +99,11 @@ def fetch(systems: list[str], out: Path, workers: int = 8, log=print) -> dict:
         body = get(RAW % (LIBRETRO_COMMIT, f, urllib.parse.quote(s)))
         path = out / f / f"{s}.dat"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(body or b"")
+        # An interrupted fetch must not become a reusable truncated cache file.
+        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as temporary:
+            temporary.write(body or b"")
+            temporary_name = Path(temporary.name)
+        temporary_name.replace(path)
         return f, s, body is not None
 
     with concurrent.futures.ThreadPoolExecutor(workers) as pool:
@@ -105,9 +114,7 @@ def fetch(systems: list[str], out: Path, workers: int = 8, log=print) -> dict:
                 failed.append(str(e))
     if failed:
         stats["failed"] = len(failed)
-        if len(failed) > max(3, len(jobs) // 50):
-            sys.exit(f"reference data: {len(failed)} of {len(jobs)} files could not be fetched, for example: {failed[0]}")
-        log(f"reference data: {len(failed)} files could not be fetched and are left out ({failed[0]})")
+        raise RuntimeError(f"reference data: {len(failed)} of {len(jobs)} files could not be fetched; no partial reference release ({failed[0]})")
     return dict(stats)
 
 
@@ -207,6 +214,8 @@ def build(art: list[str], platforms: list[str], roms: list[str], ref: Path) -> d
     leads (it names the very disc: a budget re-release has the serial and the year of the re-release) and the name's fills in what it lacks.
     Nothing else is tried."""
     n = len(art)
+    if len(platforms) != n or len(roms) != n:
+        raise ValueError("reference input columns must have the same catalogue order and length")
     names = entry_names(art)
     votes: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     for key, plat in zip(names, platforms):
@@ -254,13 +263,13 @@ def build(art: list[str], platforms: list[str], roms: list[str], ref: Path) -> d
         cols["genre"][i] = genre_bits(rec.get("genre", ""), unmapped)
         cols["year"][i] = year_ok(rec.get("releaseyear", ""))
         m = rec.get("releasemonth", "")
-        cols["month"][i] = int(m) if m.isdigit() and 1 <= int(m) <= 12 else 0
+        cols["month"][i] = int(m) if cols["year"][i] and m.isdigit() and 1 <= int(m) <= 12 else 0
         cols["dev"][i] = index("dev", rec.get("developer", ""))
         cols["pub"][i] = index("pub", rec.get("publisher", ""))
         u = rec.get("users", "")
         cols["players"][i] = int(u) if u.isdigit() and 1 <= int(u) <= 16 else 0
     covered = sum(1 for i in range(n) if any(cols[k][i] for k in cols))
-    return {"v": 1, "n": n, "source": SOURCE, "dims": dims, "cols": cols,
+    return {"v": 1, "n": n, "source": SOURCE, "catalogue_key": catalogue_key(art, platforms, roms), "dims": dims, "cols": cols,
             "stats": {"entries": n, "considered": sum(seen.values()), "covered": covered, "unmapped_genres": dict(unmapped),
                       "by_system": {s: [seen[s], by[s]["name"], by[s]["serial"]] for s in sorted(seen)}}}
 
@@ -269,10 +278,36 @@ def build(art: list[str], platforms: list[str], roms: list[str], ref: Path) -> d
 CHUNK = 40_000
 
 
+def catalogue_key(art: list[str], platforms: list[str], roms: list[str]) -> str:
+    """Bind row-aligned facts to the exact matching inputs, not just an entry count."""
+    return hashlib.sha256(json.dumps([art, platforms, roms], ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def validate_overlay(meta: dict, dataset: dict, art: list[str]) -> str:
+    """Reject stale/reordered overlays before a site is written. No fuzzy join or backfill."""
+    entries = dataset["entries"]
+    platforms = [dataset["dims"]["platforms"][p]["id"] for p in entries["platform"]]
+    expected = catalogue_key(art, platforms, entries["rom"])
+    if meta.get("v") != 1 or meta.get("n") != entries["n"] or len(art) != entries["n"] or meta.get("catalogue_key") != expected:
+        raise ValueError("reference overlay is not bound to this catalogue and artwork order")
+    if meta.get("source") != SOURCE:
+        raise ValueError("reference overlay source does not match the pinned metadata version")
+    cols, dims = meta["cols"], meta["dims"]
+    if set(cols) != {"genre", "year", "month", "dev", "pub", "players"} or dims["genre"] != GENRES:
+        raise ValueError("unsupported reference columns or genre vocabulary")
+    limits = {"genre": (1 << len(GENRES)) - 1, "year": 2100, "month": 12, "dev": len(dims["dev"]), "pub": len(dims["pub"]), "players": 16}
+    for field, limit in limits.items():
+        if len(cols[field]) != entries["n"] or any(type(value) is not int or not 0 <= value <= limit for value in cols[field]):
+            raise ValueError(f"invalid reference column: {field}")
+    if any(year != 0 and year < 1950 for year in cols["year"]) or any(month and not year for month, year in zip(cols["month"], cols["year"])):
+        raise ValueError("invalid reference release date")
+    return expected
+
+
 def ndjson(meta: dict) -> bytes:
     """One JSON document per line, like the catalogue's files: the page parses each in its own short task."""
     dump = lambda v: json.dumps(v, separators=(",", ":"), ensure_ascii=False)
-    lines = [dump(["n", None, meta["n"]]), dump(["source", None, meta["source"]]), dump(["dims", None, meta["dims"]]), dump(["stats", None, meta["stats"]])]
+    lines = [dump([key, None, meta[key]]) for key in ("v", "n", "catalogue_key", "source", "dims", "stats")]
     for k, col in meta["cols"].items():
         if len(col) > CHUNK:
             lines += [dump(["cols", k, col[o:o + CHUNK], o]) for o in range(0, len(col), CHUNK)]
@@ -311,11 +346,18 @@ def main() -> int:
     if a.cmd == "fetch":
         systems = systems_of(art)
         print(f"{len(systems)} systems x {len(FIELDS)} fields from libretro-database {LIBRETRO_COMMIT[:8]}")
-        print(fetch(systems, Path(a.out)))
+        # A different pin never silently reuses unversioned or older cached files.
+        print(fetch(systems, Path(a.out) / LIBRETRO_COMMIT))
         return 0
     ds = json.loads(gzip.decompress(Path(a.dataset).read_bytes()))
     plat = [ds["dims"]["platforms"][p]["id"] for p in ds["entries"]["platform"]]
-    meta = build(art, plat, ds["entries"]["rom"], Path(a.ref))
+    pinned = Path(a.ref) / LIBRETRO_COMMIT
+    if not pinned.is_dir():
+        ap.error("the pinned reference cache is missing; run the fetch command first")
+    if any(not (pinned / field / f"{system}.dat").is_file() for system in systems_of(art) for field in FIELDS):
+        ap.error("the pinned reference cache is incomplete; run the fetch command first")
+    meta = build(art, plat, ds["entries"]["rom"], pinned)
+    validate_overlay(meta, ds, art)
     Path(a.out).write_bytes(gzip.compress(json.dumps(meta, separators=(",", ":"), ensure_ascii=False).encode("utf-8"), 9, mtime=0))
     s = meta["stats"]
     print(f"{s['covered']:,} of {s['entries']:,} entries have reference data ({s['considered']:,} are on a platform libretro has files for); "

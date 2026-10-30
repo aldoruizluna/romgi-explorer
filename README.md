@@ -38,6 +38,9 @@ It listens on `127.0.0.1` only and opens the database read-only.
   ×N chip, and its card lists the other editions) or 400k links, a box-art gallery (most achievements first, or A to Z, most sources, largest),
   and a catalogue-card drawer for every entry (for a game whose cover comes from libretro, also its title screen and an in-game picture when libretro has them).
 - **Sources** health, which combinations of sources offer each entry, torrent packs, and the catalogue size over the weekly snapshots.
+- **Reference facts** in hosted entry cards: genre, release year/month, developer, publisher and players where an exact libretro name or
+  serial matches. Unknown facts stay absent. Each card credits the pinned source and its CC BY-SA 4.0 licence; metadata loads separately,
+  so an unavailable reference file leaves the catalogue usable.
 - **Links.** The address bar says what the page shows: `#browse?q=mario&f.plat=snes,gba&x.reg=jp&s=size&d=-1&c=<entry>` is a slice, a
   sort and an open card. Filter values are ids and names, so a link keeps its meaning when the catalogue is rebuilt (a name that is gone
   is skipped, and the page says so). Changing view or opening a card adds a history entry, so back closes a card. A "Link" button copies
@@ -80,6 +83,7 @@ them to `data/history.json`), builds the dataset, checks it against SQL, and dep
 - the titles, serials, slugs and exact sizes (4.0 MB) as a second file that follows at once. Search, the Browse table and the size
   totals switch on when it lands, and until then they say so;
 - the box-art paths as a third file, loaded once the titles are in, and the covers themselves only as they scroll into view;
+- a separate, row-bound reference metadata file, fetched from a pinned libretro-database commit during the build and saved optionally offline;
 - a link-free copy of the database (`livedb.py`) and [sql.js](https://github.com/sql-js/sql.js) (checked against a pinned hash), which
   the SQL console downloads only when someone runs a query, and then keeps in the browser;
 - a web app manifest, icons and a service worker (`sw.js`), so the site can be installed and then opens with no connection.
@@ -103,7 +107,9 @@ should count as activity; if the schedule is ever disabled, re-enable it from th
 ```bash
 python3 build_dataset.py --db data/romdb.db --version-json data/version.json --out dist/dataset.snapshot.json.gz --art-out dist/art.snapshot.json.gz
 python3 livedb.py data/romdb.db dist/livedb.sqlite.gz --gzip
-python3 bundle.py --dataset dist/dataset.snapshot.json.gz --art dist/art.snapshot.json.gz --live-db dist/livedb.sqlite.gz --pages --out-dir site
+python3 reference.py fetch --art dist/art.snapshot.json.gz --out data/reference
+python3 reference.py build --dataset dist/dataset.snapshot.json.gz --art dist/art.snapshot.json.gz --ref data/reference --out dist/meta.snapshot.json.gz
+python3 bundle.py --dataset dist/dataset.snapshot.json.gz --art dist/art.snapshot.json.gz --reference dist/meta.snapshot.json.gz --live-db dist/livedb.sqlite.gz --pages --out-dir site
 python3 -m http.server --directory site 8790                                          # then open http://localhost:8790
 ```
 
@@ -116,6 +122,7 @@ build_dataset.py    romdb.db -> compact columnar dataset (+ schema, profiles, qu
 drift.py            guards: stops on a catalogue format it does not read, holds back a newest catalogue that is unfinished
 livedb.py           romdb.db -> the link-free copy the hosted SQL console runs on
 vendor_sqljs.py     fetches sql.js for the hosted site, verified against a pinned hash
+reference.py        exact name/serial joins to pinned libretro metadata; source, licence and catalogue-order binding travel with the overlay
 bundle.py           builds the hosted site (--pages) or the single-file versions into dist/
 compose.py          assembles the page from web/
 pwa.py, icons.py    the web app manifest, the service worker's build id and file lists, and the app icons (drawn without an image library)
@@ -131,6 +138,22 @@ tests/              dataset-vs-SQL parity, a random-slice property test of the e
 ```
 
 ## Tests
+
+Pull requests run the hosted build and its checks without deploying. Main and scheduled builds publish only after those checks pass.
+Reference parser, binding and failure checks can also run without the catalogue:
+
+```bash
+python3 tests/test_reference.py
+python3 tests/test_reference_overlay.py
+node tests/reference.test.js
+```
+
+The real-catalogue reference audit checks field ranges, genre vocabulary, independent name/serial agreement and source samples.
+Browser checks cover English/Spanish cards and missing or stale overlays. Generated reference metadata is derived from
+[libretro-database](https://github.com/libretro/libretro-database/tree/fbeefcb46c2e1b20a7e2945f34a694a41b2d6f90),
+is attributed to its contributors and is shared under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+The overlay normalises genres, encodes fields and selects exact matches; this licence applies to that derived data. Raw source caches
+and generated catalogues remain local/build artifacts and are never committed.
 
 ```bash
 python3 build_dataset.py --db data/romdb.db --out dist/dataset.snapshot.json.gz

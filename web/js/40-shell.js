@@ -399,6 +399,7 @@ async function boot() {
     await App.mount();
     Loader.done();
     if (App.D.detailReady) loadArt(); else loadDetail();      // not awaited: the page already works; titles, then covers, follow
+    loadReference();                // optional matched facts must never hold the catalogue
     checkFreshness();                // likewise: a dot beside the version
     Pwa.init();                      // and the offline copy, once the page's own downloads are done
   } catch (e) { console.error(e); Loader.fail(e); }

@@ -27,6 +27,7 @@ from pathlib import Path
 import build_dataset as bd
 import icons
 import pwa
+import reference
 from compose import compose
 
 HERE = Path(__file__).resolve().parent
@@ -67,9 +68,12 @@ def main():
     ap.add_argument("--live-db", help="with --pages: gzip'd link-free copy of the database from livedb.py; the site gets a SQL console that runs in the browser")
     ap.add_argument("--pick", help="with --pages: data/pick.json from drift.py pick; when romgi's newest catalogue was held back as unfinished, the site says so")
     ap.add_argument("--art", help="gzip'd box-art paths from build_dataset.py --art-out; with --pages they become a file the site loads after start")
+    ap.add_argument("--reference", help="with --pages: pinned, row-bound reference metadata built by reference.py")
     ap.add_argument("--out-dir", default=str(HERE / "dist"))
     ap.add_argument("--pages", action="store_true", help="write a site for GitHub Pages into --out-dir (index.html marked noindex, the catalogue as its own file, version.json) instead of the two dist files")
     a = ap.parse_args()
+    if a.reference and (not a.pages or not a.art):
+        ap.error("--reference requires --pages and the exact --art matching its catalogue")
     art_gz = Path(a.art).read_bytes() if a.art else None
     if a.dataset:
         gz = Path(a.dataset).read_bytes()
@@ -85,6 +89,8 @@ def main():
     mb = lambda n: f"{n / 1e6:.2f} MB"
     if a.pages:
         ds = json.loads(gzip.decompress(gz))
+        ref_meta = json.loads(gzip.decompress(Path(a.reference).read_bytes())) if a.reference else None
+        reference_key = reference.validate_overlay(ref_meta, ds, json.loads(gzip.decompress(art_gz))) if ref_meta is not None else ""
         built_at = ds["meta"].pop("built_at", None)      # ships in the page instead, so the data file only changes when the data does
         gz = gzip.compress(ndjson(ds), 9, mtime=0)
         detail_gz = gzip.compress(ndjson(ds, detail=True), 9, mtime=0)
@@ -93,11 +99,12 @@ def main():
         detail_name = "detail." + hashlib.sha256(detail_gz).hexdigest()[:8] + ".bin"
         hero = {"entries": ds["entries"]["n"], "links": ds["links"]["n"], "platforms": len(ds["dims"]["platforms"]),
                 "sources": len(ds["dims"]["sources"]), "version": meta["version"]}
-        for old in [*out.glob("catalogue.*.bin"), *out.glob("detail.*.bin"), *out.glob("art.*.bin"), *out.glob("db.*.bin")]:
+        for old in [*out.glob("catalogue.*.bin"), *out.glob("detail.*.bin"), *out.glob("art.*.bin"), *out.glob("db.*.bin"), *out.glob("meta.*.bin")]:
             old.unlink()
         (out / name).write_bytes(gz)
         (out / detail_name).write_bytes(detail_gz)
         art_name = ""
+        ref_name = reference.write(ref_meta, out)[0] if ref_meta is not None else ""
         if art_gz:
             art_name = "art." + hashlib.sha256(art_gz).hexdigest()[:8] + ".bin"
             (out / art_name).write_bytes(art_gz)
@@ -134,15 +141,15 @@ def main():
         icons.write(out / "icons")
         (out / "manifest.webmanifest").write_text(json.dumps(pwa.manifest("Every release and every link in the romgi ROM catalogue, sliceable and pivotable."), indent=1) + "\n", encoding="utf-8")
         page = compose("snapshot", "", standalone=True, pages=True, data_url=name, hero=hero, art_url=art_name, site_url=a.site_url, sql=sql_cfg, data_bytes=len(gz),
-                       detail_url=detail_name, detail_bytes=len(detail_gz), built_at=built_at or "", latest=latest, lang_urls={"es": lang_name})
+                       detail_url=detail_name, detail_bytes=len(detail_gz), built_at=built_at or "", latest=latest, lang_urls={"es": lang_name}, reference_url=ref_name, reference_key=reference_key)
         (out / "index.html").write_text(page, encoding="utf-8")
         # the service worker keeps the page and the catalogue in the visitor's browser; its id changes with any of them
         worker, saved = pwa.service_worker(out, name, detail_name, art_name, lang_name, {"data": name, "detail": detail_name, "version": meta["version"],
-                                                                         "generated_at": meta.get("generated_at"), "built_at": built_at}, stamp=built_at or "")
+                                                                         "generated_at": meta.get("generated_at"), "built_at": built_at}, stamp=built_at or "", reference=ref_name)
         (out / "sw.js").write_text(worker, encoding="utf-8")
         # what a visitor's browser compares with romgi's live version.json to say whether this build is current
         (out / "version.json").write_text(json.dumps({
-            "built_at": built_at, "data": name, "detail": detail_name, "art": art_name or None, "db": db_name or None,
+            "built_at": built_at, "data": name, "detail": detail_name, "art": art_name or None, "db": db_name or None, "reference": ref_name or None,
             "romgi": {"version": meta["version"], "generated_at": meta.get("generated_at"), "entries": hero["entries"], "links": hero["links"]},
             **({"latest": latest} if latest else {}),
         }, indent=1) + "\n", encoding="utf-8")

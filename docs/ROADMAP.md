@@ -153,6 +153,11 @@ game database** (CC BY-NC-ND), **LaunchBox, TheGamesDB, Hasheous** (no data lice
 **RetroAchievements' API** (terms not readable by the survey; we already carry its ids and counts). NoPayStation's published lists hold
 package URLs and keys: never read into anything public.
 
+**F3 implementation, 2026-10-30:** hosted cards now consume a separable, pinned metadata overlay for genre, year/month, developer,
+publisher and players, joined by exact art name or serial. Source/licence attribution, catalogue-order validation, unknown rows,
+English/Spanish cards and optional-file failure are covered by checks. Facets, franchise/ESRB, virtual collections and similar shelves
+remain future work; the implementation does not mark F1/F2 or the broader F9 coverage UI complete.
+
 ### What reference data makes possible
 
 1. **Completeness.** Per platform, how much of the No-Intro or Redump set the catalogue has, split into games, demos, prototypes,
